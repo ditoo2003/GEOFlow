@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Adapter\Protocol;
 use App\Jobs\ProcessGeoFlowTaskJob;
 use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
@@ -81,10 +82,12 @@ class MarkdownContentWriterAgent implements Agent, Conversational, HasProviderOp
             return $options;
         }
 
-        return array_merge($options, match ($providerKey) {
-            'gemini' => ['maxOutputTokens' => $this->maxTokens],
-            'openai' => ['max_output_tokens' => $this->maxTokens],
-            default => ['max_tokens' => $this->maxTokens],
-        });
+        $protocol = match ($providerKey) {
+            Lab::Gemini->value => Protocol::GeminiNative,
+            Lab::OpenAI->value => Protocol::OpenAiResponses,
+            default => Protocol::OpenAiChat,
+        };
+
+        return [...$options, $protocol->tokenField() => $this->maxTokens];
     }
 }

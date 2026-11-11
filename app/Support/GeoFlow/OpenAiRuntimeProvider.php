@@ -2,6 +2,7 @@
 
 namespace App\Support\GeoFlow;
 
+use App\Ai\Adapter\ModelEndpointResolver;
 use Illuminate\Support\Facades\Config;
 use Throwable;
 
@@ -15,34 +16,7 @@ final class OpenAiRuntimeProvider
      */
     public static function resolveChatBaseUrl(string $apiUrl): string
     {
-        $normalized = trim($apiUrl);
-        if ($normalized === '') {
-            return '';
-        }
-
-        $normalized = rtrim($normalized, '/');
-        if (self::isGeminiProviderUrl($normalized)) {
-            return self::resolveGeminiBaseUrl($normalized);
-        }
-
-        $host = strtolower((string) (parse_url($normalized, PHP_URL_HOST) ?? ''));
-        if ($host === 'api.openai.com' && preg_match('#/responses$#', $normalized) === 1) {
-            $normalized = substr($normalized, 0, -strlen('/responses'));
-        }
-
-        if (preg_match('#/v1/chat/completions$#', $normalized) === 1) {
-            return substr($normalized, 0, -strlen('/chat/completions'));
-        }
-        if (preg_match('#/chat/completions$#', $normalized) === 1) {
-            return substr($normalized, 0, -strlen('/chat/completions'));
-        }
-
-        $path = (string) (parse_url($normalized, PHP_URL_PATH) ?? '');
-        if ($path === '' || $path === '/') {
-            return $normalized.'/v1';
-        }
-
-        return $normalized;
+        return ModelEndpointResolver::chatBaseUrl($apiUrl);
     }
 
     /**
@@ -50,34 +24,7 @@ final class OpenAiRuntimeProvider
      */
     public static function resolveEmbeddingBaseUrl(string $apiUrl): string
     {
-        $normalized = trim($apiUrl);
-        if ($normalized === '') {
-            return '';
-        }
-
-        $normalized = rtrim($normalized, '/');
-        if (self::isGeminiProviderUrl($normalized)) {
-            return self::resolveGeminiBaseUrl($normalized);
-        }
-
-        if (self::isVolcengineProviderUrl($normalized)
-            && str_ends_with($normalized, self::volcengineMultimodalEmbeddingPath())) {
-            return substr($normalized, 0, -strlen(self::volcengineMultimodalEmbeddingPath()));
-        }
-
-        if (preg_match('#/v1/embeddings$#', $normalized) === 1) {
-            return substr($normalized, 0, -strlen('/embeddings'));
-        }
-        if (preg_match('#/embeddings$#', $normalized) === 1) {
-            return substr($normalized, 0, -strlen('/embeddings'));
-        }
-
-        $path = (string) (parse_url($normalized, PHP_URL_PATH) ?? '');
-        if ($path === '' || $path === '/') {
-            return $normalized.'/v1';
-        }
-
-        return $normalized;
+        return ModelEndpointResolver::embeddingBaseUrl($apiUrl);
     }
 
     /**
@@ -85,27 +32,7 @@ final class OpenAiRuntimeProvider
      */
     public static function resolveChatDriver(string $apiUrl, string $modelId = ''): string
     {
-        $normalized = strtolower(trim($apiUrl));
-        $model = strtolower(trim($modelId));
-        $host = strtolower((string) (parse_url($normalized, PHP_URL_HOST) ?? ''));
-
-        if (self::isGeminiProviderUrl($normalized)) {
-            return 'gemini';
-        }
-
-        if ($host === 'api.openai.com') {
-            return 'openai';
-        }
-
-        if (str_contains($host, 'openrouter.ai')) {
-            return 'openrouter';
-        }
-
-        if (str_contains($host, 'api.deepseek.com') || str_starts_with($model, 'deepseek')) {
-            return 'deepseek';
-        }
-
-        return 'openai-compatible';
+        return ModelEndpointResolver::chatDriver($apiUrl, $modelId);
     }
 
     /**
@@ -113,17 +40,7 @@ final class OpenAiRuntimeProvider
      */
     public static function resolveEmbeddingDriver(string $apiUrl, string $modelId = ''): string
     {
-        if (self::isGeminiProviderUrl($apiUrl)) {
-            return 'gemini';
-        }
-
-        if (self::isVolcengineMultimodalEmbedding($apiUrl, $modelId)) {
-            return 'volcengine-multimodal';
-        }
-
-        $host = strtolower((string) (parse_url(trim($apiUrl), PHP_URL_HOST) ?? ''));
-
-        return $host === 'api.openai.com' ? 'openai' : 'openai-compatible';
+        return ModelEndpointResolver::embeddingDriver($apiUrl, $modelId);
     }
 
     /**
@@ -131,9 +48,7 @@ final class OpenAiRuntimeProvider
      */
     public static function isGeminiProviderUrl(string $apiUrl): bool
     {
-        $host = strtolower((string) (parse_url(trim($apiUrl), PHP_URL_HOST) ?? ''));
-
-        return $host === 'generativelanguage.googleapis.com';
+        return ModelEndpointResolver::isGeminiUrl($apiUrl);
     }
 
     /**
@@ -141,9 +56,7 @@ final class OpenAiRuntimeProvider
      */
     public static function isVolcengineProviderUrl(string $apiUrl): bool
     {
-        $host = strtolower((string) (parse_url(trim($apiUrl), PHP_URL_HOST) ?? ''));
-
-        return $host !== '' && str_ends_with($host, '.volces.com');
+        return ModelEndpointResolver::isVolcengineUrl($apiUrl);
     }
 
     /**
@@ -154,7 +67,7 @@ final class OpenAiRuntimeProvider
      */
     public static function isVolcengineMultimodalEmbeddingModel(string $modelId): bool
     {
-        return str_starts_with(strtolower(trim($modelId)), 'doubao-embedding-vision-');
+        return ModelEndpointResolver::isVolcengineMultimodalModel($modelId);
     }
 
     /**
@@ -164,7 +77,7 @@ final class OpenAiRuntimeProvider
      */
     public static function volcengineMultimodalEmbeddingPath(): string
     {
-        return '/embeddings/multimodal';
+        return ModelEndpointResolver::volcengineMultimodalPath();
     }
 
     /**
@@ -175,9 +88,7 @@ final class OpenAiRuntimeProvider
      */
     public static function isVolcengineMultimodalEmbedding(string $apiUrl, string $modelId): bool
     {
-        return self::isVolcengineProviderUrl($apiUrl)
-            && (self::isVolcengineMultimodalEmbeddingModel($modelId)
-                || str_ends_with(rtrim(trim($apiUrl), '/'), self::volcengineMultimodalEmbeddingPath()));
+        return ModelEndpointResolver::isVolcengineMultimodal($apiUrl, $modelId);
     }
 
     /**
@@ -185,21 +96,7 @@ final class OpenAiRuntimeProvider
      */
     public static function resolveGeminiBaseUrl(string $apiUrl): string
     {
-        $normalized = trim($apiUrl);
-        if ($normalized === '') {
-            return '';
-        }
-
-        $parts = parse_url($normalized);
-        $host = (string) ($parts['host'] ?? '');
-        if ($host === '') {
-            return '';
-        }
-
-        $scheme = (string) ($parts['scheme'] ?? 'https');
-        $port = isset($parts['port']) ? ':'.(string) $parts['port'] : '';
-
-        return strtolower($scheme).'://'.$host.$port.'/v1beta';
+        return ModelEndpointResolver::geminiBaseUrl($apiUrl);
     }
 
     /**

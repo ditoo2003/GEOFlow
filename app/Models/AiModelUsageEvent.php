@@ -57,6 +57,9 @@ class AiModelUsageEvent extends Model
             'output_tokens' => 'integer',
             'total_tokens' => 'integer',
             'estimated_cost' => 'decimal:8',
+            'duration_ms' => 'integer',
+            'max_tokens_applied' => 'integer',
+            'attempt' => 'integer',
         ];
     }
 

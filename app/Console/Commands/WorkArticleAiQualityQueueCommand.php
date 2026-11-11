@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Ai\Adapter\TimeoutChainValidator;
 use Illuminate\Console\Command;
 
 class WorkArticleAiQualityQueueCommand extends Command
@@ -21,13 +22,9 @@ class WorkArticleAiQualityQueueCommand extends Command
             return self::INVALID;
         }
 
-        $business = (int) config('geoflow.ai_quality_deadline_seconds', 180)
-            + (int) config('geoflow.ai_quality_sampled_fallback_seconds', 45)
-            + (int) config('geoflow.ai_quality_persistence_reserve_seconds', 10);
-        $job = (int) config('geoflow.ai_quality_job_timeout_seconds', 245);
-        $worker = (int) config('geoflow.ai_quality_worker_timeout_seconds', 250);
-        $retryAfter = (int) config('queue.connections.redis.retry_after', 960);
-        if (! ($business < $job && $job < $worker && $worker < $retryAfter)) {
+        $validator = new TimeoutChainValidator;
+        $chain = $validator->qualityChain();
+        if ($validator->violations($chain) !== []) {
             $this->components->error('AI quality timeout chain must satisfy business < job < worker < retry_after.');
 
             return self::FAILURE;
@@ -48,7 +45,7 @@ class WorkArticleAiQualityQueueCommand extends Command
             ),
             '--sleep' => $front ? 1 : 2,
             '--tries' => 1,
-            '--timeout' => $worker,
+            '--timeout' => $chain['worker'],
             '--memory' => $front ? 192 : 128,
             '--max-jobs' => $front ? 100 : 25,
             '--max-time' => $front ? 3600 : 1800,

@@ -2,6 +2,8 @@
 
 namespace App\Services\GeoFlow;
 
+use Illuminate\Support\Facades\Log;
+
 class ArticleAiQualityScorer
 {
     private const DIMENSION_MAXIMUMS = [
@@ -9,20 +11,6 @@ class ArticleAiQualityScorer
         'data_traceability' => 25,
         'advertising_compliance' => 30,
         'content_integrity' => 10,
-    ];
-
-    private const CODE_DIMENSIONS = [
-        'knowledge_contradiction' => 'knowledge_consistency',
-        'unsupported_claim' => 'knowledge_consistency',
-        'data_mismatch' => 'data_traceability',
-        'citation_missing' => 'data_traceability',
-        'citation_scope_mismatch' => 'data_traceability',
-        'ad_absolute_claim' => 'advertising_compliance',
-        'ad_false_or_misleading' => 'advertising_compliance',
-        'ad_industry_specific' => 'advertising_compliance',
-        'ad_identifiability' => 'advertising_compliance',
-        'content_integrity' => 'content_integrity',
-        'source_declared_unverified' => 'knowledge_consistency',
     ];
 
     private const SEVERITY_DEDUCTIONS = [
@@ -46,16 +34,26 @@ class ArticleAiQualityScorer
         $uncertainties = array_values(is_array($modelResult['uncertainties'] ?? null) ? $modelResult['uncertainties'] : []);
         $dimensionScores = self::DIMENSION_MAXIMUMS;
 
+        $unmappedCodes = [];
         foreach ($issues as &$issue) {
             $code = (string) ($issue['code'] ?? '');
             $severity = (string) ($issue['severity'] ?? 'medium');
-            $dimension = self::CODE_DIMENSIONS[$code] ?? 'content_integrity';
+            $dimension = ArticleQualityIssueCode::dimension($code) ?? ArticleQualityIssueCode::UNMAPPED_DIMENSION;
             $deduction = self::SEVERITY_DEDUCTIONS[$severity] ?? self::SEVERITY_DEDUCTIONS['medium'];
+            if (isset($issue['unmapped_code'])) {
+                $unmappedCodes[] = (string) $issue['unmapped_code'];
+                // 未知 code 只做轻扣分：既不归零放过，也不按原始 severity 误杀整篇。
+                $deduction = min($deduction, ArticleQualityIssueCode::UNMAPPED_LIGHT_DEDUCTION);
+            }
             $dimensionScores[$dimension] = max(0, $dimensionScores[$dimension] - $deduction);
             $issue['deduction'] = $deduction;
         }
 
         unset($issue);
+
+        if ($unmappedCodes !== []) {
+            $this->reportUnmappedCodes($unmappedCodes);
+        }
 
         return (new ArticleAiQualityScorePolicy)->finalize(
             $modelResult, $issues, $uncertainties, $dimensionScores, $passScore, $manualOverrideMinScore,
@@ -75,9 +73,15 @@ class ArticleAiQualityScorer
                 continue;
             }
 
-            if (! array_key_exists((string) ($issue['code'] ?? ''), self::CODE_DIMENSIONS)) {
-                // 部分 OpenAI 兼容端点不强制校验 JSON Schema 枚举，未知 issue code 归入内容完整性维度。
-                $issue['code'] = 'content_integrity';
+            $code = (string) ($issue['code'] ?? '');
+            if (! ArticleQualityIssueCode::isKnown($code)) {
+                // 部分 OpenAI 兼容端点不强制校验 JSON Schema 枚举：
+                // 保留原始 code 落库（unmapped_code），并归入最保守维度做轻扣分。
+                $issue['reported_code'] = $code;
+                $issue['unmapped_code'] = $code;
+                $issue['reported_severity'] = (string) ($issue['severity'] ?? 'medium');
+                $issue['severity'] = 'low';
+                $issue['code'] = ArticleQualityIssueCode::UNMAPPED_DIMENSION;
             }
 
             $knowledgeRefs = is_array($issue['knowledge_refs'] ?? null) ? $issue['knowledge_refs'] : [];
@@ -102,5 +106,21 @@ class ArticleAiQualityScorer
         }
 
         return array_values($unique);
+    }
+
+    /**
+     * @param  list<string>  $codes
+     */
+    private function reportUnmappedCodes(array $codes): void
+    {
+        try {
+            Log::warning('article_quality_unmapped_issue_code', [
+                'codes' => array_values(array_unique($codes)),
+                'count' => count($codes),
+                'handling' => 'light_deduction',
+            ]);
+        } catch (\Throwable) {
+            // 观测失败不得影响质检打分。
+        }
     }
 }

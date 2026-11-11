@@ -100,12 +100,9 @@ class ArticleAiQualityScorerTest extends TestCase
         $this->assertSame('passed', $result['decision']);
     }
 
-    public function test_removed_ai_generation_disclosure_code_is_rejected(): void
+    public function test_removed_ai_generation_disclosure_code_is_lightly_penalized_and_recorded(): void
     {
-        $this->expectException(\InvalidArgumentException::class);
-        $this->expectExceptionMessage('AI quality issue code is invalid.');
-
-        (new ArticleAiQualityScorer)->score([
+        $result = (new ArticleAiQualityScorer)->score([
             'promotion_context' => 'informational',
             'knowledge_coverage' => 'sufficient',
             'issues' => [[
@@ -118,5 +115,14 @@ class ArticleAiQualityScorerTest extends TestCase
             'uncertainties' => [],
         ], 85, 70);
 
+        $issue = $result['issues'][0];
+        $this->assertSame('content_integrity', $issue['code']);
+        $this->assertSame('ai_generated_disclosure', $issue['unmapped_code']);
+        $this->assertSame('high', $issue['reported_severity']);
+        $this->assertSame('low', $issue['severity']);
+        $this->assertSame(2, $issue['deduction']);
+        $this->assertSame(8, $result['dimension_scores']['content_integrity']);
+        $this->assertSame(98, $result['score']);
+        $this->assertSame('passed', $result['decision']);
     }
 }

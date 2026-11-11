@@ -2,6 +2,11 @@
 
 namespace App\Services\GeoFlow;
 
+use App\Ai\Adapter\CallBudget;
+use App\Ai\Adapter\CallScene;
+use App\Ai\Adapter\ModelCallError;
+use App\Ai\Adapter\ModelCallException;
+use App\Ai\Adapter\ModelEndpointResolver;
 use App\Ai\Agents\MarkdownContentWriterAgent;
 use App\Data\Ai\AiExecutionContext;
 use App\Data\Ai\KnowledgeEmbeddingProviderResult;
@@ -26,6 +31,7 @@ use App\Support\GeoFlow\AiModelFailoverDecider;
 use App\Support\GeoFlow\ApiKeyCrypto;
 use App\Support\GeoFlow\OpenAiRuntimeProvider;
 use Illuminate\Http\Client\Factory;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
@@ -2337,6 +2343,29 @@ class KnowledgeChunkSyncService
         return hash_equals($frozenSourceHash, hash('sha256', (string) $knowledgeBase->content));
     }
 
+    /**
+     * 将服务商 HTTP 失败归一化为可读的中文错误；保留 "batch size" 原文以复用批量降级判定。
+     */
+    private function embeddingRequestException(Response $response): ModelCallException
+    {
+        $error = data_get($response->json(), 'error.message');
+        $providerMessage = is_string($error) ? $error : '';
+        $retryAfter = (int) $response->header('Retry-After');
+        $detail = $providerMessage;
+        if ($providerMessage !== '' && $this->isEmbeddingBatchSizeError($providerMessage)
+            && ! str_contains(strtolower($providerMessage), 'batch size')) {
+            $detail = 'batch size: '.$providerMessage;
+        }
+
+        return new ModelCallException(
+            ModelCallError::fromStatus($response->status(), $providerMessage, $retryAfter > 0 ? $retryAfter : null),
+            $response->status(),
+            retryAfterSeconds: $retryAfter > 0 ? $retryAfter : null,
+            previous: $response->toException(),
+            providerDetail: $detail,
+        );
+    }
+
     private function isEmbeddingBatchSizeError(string $message): bool
     {
         $normalized = strtolower($message);
@@ -2393,28 +2422,27 @@ class KnowledgeChunkSyncService
         array $embeddingMetadata,
     ): KnowledgeEmbeddingProviderResult {
         $endpoint = rtrim((string) $embeddingMetadata['api_url'], '/').'/embeddings';
+        $budget = CallBudget::for(
+            ModelEndpointResolver::fromParts(
+                (string) $embeddingMetadata['api_url'],
+                (string) $embeddingMetadata['model_name'],
+                'embedding',
+            ),
+            CallScene::Embedding,
+        );
 
         $request = $this->http->acceptJson()
             ->asJson()
             ->withToken((string) $embeddingMetadata['api_key'])
-            ->connectTimeout(8)
-            ->timeout(45);
+            ->connectTimeout($budget->connect)
+            ->timeout($budget->read);
         $response = $this->safeHttp->post($request, $endpoint, [
             'model' => (string) $embeddingMetadata['model_name'],
             'input' => $inputs,
         ], (int) config('geoflow.outbound_ai_max_bytes', 8 * 1024 * 1024));
 
         if (! $response->successful()) {
-            $error = data_get($response->json(), 'error.message');
-            $message = is_string($error) && $this->isEmbeddingBatchSizeError($error)
-                ? 'Embedding provider rejected batch size.'
-                : 'Embedding provider request failed.';
-
-            throw new \RuntimeException(sprintf(
-                'HTTP request returned status code %d: %s',
-                $response->status(),
-                $message,
-            ), 0, $response->toException());
+            throw $this->embeddingRequestException($response);
         }
 
         $data = $response->json();
@@ -2474,24 +2502,24 @@ class KnowledgeChunkSyncService
             ),
         ];
 
+        $budget = CallBudget::for(
+            ModelEndpointResolver::fromParts(
+                (string) $embeddingMetadata['api_url'],
+                (string) $embeddingMetadata['model_name'],
+                'embedding',
+            ),
+            CallScene::Embedding,
+        );
+
         $request = $this->http->acceptJson()
             ->asJson()
             ->withToken((string) $embeddingMetadata['api_key'])
-            ->connectTimeout(8)
-            ->timeout(45);
+            ->connectTimeout($budget->connect)
+            ->timeout($budget->read);
         $response = $this->safeHttp->post($request, $endpoint, $payload, (int) config('geoflow.outbound_ai_max_bytes', 8 * 1024 * 1024));
 
         if (! $response->successful()) {
-            $error = data_get($response->json(), 'error.message');
-            $message = is_string($error) && $this->isEmbeddingBatchSizeError($error)
-                ? 'Embedding provider rejected batch size.'
-                : 'Embedding provider request failed.';
-
-            throw new \RuntimeException(sprintf(
-                'HTTP request returned status code %d: %s',
-                $response->status(),
-                $message,
-            ), 0, $response->toException());
+            throw $this->embeddingRequestException($response);
         }
 
         $data = $response->json();

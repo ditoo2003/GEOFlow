@@ -26,6 +26,11 @@ final class AiModelUsageRecorder
         'output_tokens',
         'total_tokens',
         'estimated_cost',
+        'duration_ms',
+        'protocol',
+        'thinking_mode',
+        'max_tokens_applied',
+        'attempt',
     ];
 
     /** @param array<string, mixed> $payload */
@@ -65,6 +70,11 @@ final class AiModelUsageRecorder
             'output_tokens' => ['nullable', 'integer', 'min:0'],
             'total_tokens' => ['nullable', 'integer', 'min:0'],
             'estimated_cost' => ['nullable', 'numeric', 'min:0'],
+            'duration_ms' => ['nullable', 'integer', 'min:0'],
+            'protocol' => ['nullable', 'string', 'max:40', 'regex:/\A[a-z0-9_.:-]+\z/i'],
+            'thinking_mode' => ['nullable', 'string', 'max:40', 'regex:/\A[a-z0-9_.:-]+\z/i'],
+            'max_tokens_applied' => ['nullable', 'integer', 'min:0'],
+            'attempt' => ['nullable', 'integer', 'min:1'],
         ])->validate();
 
         $attributes = [...$accessSnapshot->toUsageAttributes(), ...$attributes];

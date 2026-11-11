@@ -2,6 +2,7 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Adapter\Protocol;
 use Illuminate\Support\Str;
 use Laravel\Ai\Attributes\MaxTokens;
 use Laravel\Ai\Attributes\Temperature;
@@ -64,9 +65,12 @@ PROMPT);
     public function providerOptions(Lab|string $provider): array
     {
         $providerKey = $provider instanceof Lab ? $provider->value : $provider;
-        $tokenOptions = $providerKey === Lab::OpenAI->value
-            ? ['max_output_tokens' => $this->maxTokens]
-            : ($providerKey === Lab::Gemini->value ? ['maxOutputTokens' => $this->maxTokens] : ['max_tokens' => $this->maxTokens]);
+        $protocol = match ($providerKey) {
+            Lab::OpenAI->value => Protocol::OpenAiResponses,
+            Lab::Gemini->value => Protocol::GeminiNative,
+            default => Protocol::OpenAiChat,
+        };
+        $tokenOptions = [$protocol->tokenField() => $this->maxTokens];
 
         if ($provider === Lab::DeepSeek || $provider === Lab::DeepSeek->value) {
             return ['thinking' => ['type' => 'disabled'], ...$tokenOptions];

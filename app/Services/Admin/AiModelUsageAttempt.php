@@ -11,6 +11,15 @@ final class AiModelUsageAttempt
 {
     private bool $finalized = false;
 
+    private readonly int $startedAt;
+
+    /**
+     * 本次调用的观测上下文（protocol / thinking_mode / max_tokens_applied / attempt）。
+     *
+     * @var array<string, mixed>
+     */
+    private array $context = [];
+
     /**
      * @param  array{call_key:string,operation:string,business_source:string,source_type:?string,source_id:int|string|null}  $identity
      */
@@ -18,7 +27,35 @@ final class AiModelUsageAttempt
         private readonly ?AiModelUsageAccessSnapshot $snapshot,
         private readonly AiModelUsageRecorder $recorder,
         private readonly array $identity,
-    ) {}
+    ) {
+        $this->startedAt = hrtime(true);
+    }
+
+    /**
+     * 填充调用形态观测字段；未知键直接忽略，保证账本列可控。
+     *
+     * @param  array<string, mixed>  $context
+     */
+    public function context(array $context): void
+    {
+        $protocol = $context['protocol'] ?? null;
+        if (is_string($protocol) && preg_match('/\A[a-z0-9_.:-]{1,40}\z/i', $protocol) === 1) {
+            $this->context['protocol'] = $protocol;
+        }
+
+        $thinkingMode = $context['thinking_mode'] ?? null;
+        if (is_string($thinkingMode) && preg_match('/\A[a-z0-9_.:-]{1,40}\z/i', $thinkingMode) === 1) {
+            $this->context['thinking_mode'] = $thinkingMode;
+        }
+
+        if (isset($context['max_tokens_applied']) && is_numeric($context['max_tokens_applied'])) {
+            $this->context['max_tokens_applied'] = max(0, (int) $context['max_tokens_applied']);
+        }
+
+        if (isset($context['attempt']) && is_numeric($context['attempt']) && (int) $context['attempt'] >= 1) {
+            $this->context['attempt'] = (int) $context['attempt'];
+        }
+    }
 
     public function succeeded(mixed $usage = null): void
     {
@@ -64,6 +101,8 @@ final class AiModelUsageAttempt
                     : $this->safeErrorCode($errorCode),
                 ...$this->tokens($usage),
                 'estimated_cost' => null,
+                'duration_ms' => max(0, (int) round((hrtime(true) - $this->startedAt) / 1_000_000)),
+                ...$this->context,
             ]);
         } catch (Throwable $exception) {
             $this->warnSafely($exception);

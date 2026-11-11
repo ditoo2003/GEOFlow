@@ -2,6 +2,7 @@
 
 namespace App\Services\Admin;
 
+use App\Ai\Adapter\ModelEndpointResolver;
 use App\Data\Admin\AdminAiModelTestSnapshot;
 use App\Data\AiWorkspace\AiWorkspaceModelProbeResult;
 use App\Exceptions\AiModelAccessException;
@@ -10,7 +11,6 @@ use App\Models\AiModel;
 use App\Services\GeoFlow\AiUsageQuotaService;
 use App\Services\GeoFlow\AiVisibility\AiProviderEndpointPolicy;
 use App\Support\GeoFlow\ApiKeyCrypto;
-use App\Support\GeoFlow\OpenAiRuntimeProvider;
 use Closure;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +32,11 @@ final class AdminAiModelTestPreparationService
             $encryptedApiKey = (string) ($lockedModel->getRawOriginal('api_key') ?? '');
             $decryptedApiKey = $this->apiKeyCrypto->decrypt($encryptedApiKey);
             $modelType = $this->normalizeModelType((string) $lockedModel->model_type);
+            $resolved = ModelEndpointResolver::fromParts(
+                apiUrl: (string) $lockedModel->api_url,
+                modelId: (string) $lockedModel->model_id,
+                modelType: $modelType,
+            );
             $endpoint = $this->resolveEndpoint($lockedModel, $modelType);
             $reservation = $endpoint !== ''
                 && $decryptedApiKey !== ''
@@ -56,17 +61,9 @@ final class AdminAiModelTestPreparationService
                 endpoint: $endpoint,
                 providerModelId: (string) $lockedModel->model_id,
                 maxTokens: $lockedModel->max_tokens === null ? null : (int) $lockedModel->max_tokens,
-                gemini: OpenAiRuntimeProvider::isGeminiProviderUrl($endpoint),
-                volcengineMultimodal: $modelType === 'embedding'
-                    && OpenAiRuntimeProvider::isVolcengineMultimodalEmbedding(
-                        (string) $lockedModel->api_url,
-                        (string) $lockedModel->model_id,
-                    ),
-                usesOpenAiResponses: $modelType === 'chat'
-                    && OpenAiRuntimeProvider::resolveChatDriver(
-                        (string) $lockedModel->api_url,
-                        (string) $lockedModel->model_id,
-                    ) === 'openai',
+                gemini: $resolved->isGemini(),
+                volcengineMultimodal: $modelType === 'embedding' && $resolved->isMultimodalEmbedding(),
+                usesOpenAiResponses: $modelType === 'chat' && $resolved->chatDriver() === 'openai',
                 preparedAsSuperAdmin: $lockedActor->isSuperAdmin(),
                 reservation: $reservation,
                 encryptedApiKey: $encryptedApiKey,
@@ -331,28 +328,23 @@ final class AdminAiModelTestPreparationService
 
     private function resolveEndpoint(AiModel $model, string $modelType): string
     {
-        $apiUrl = (string) $model->api_url;
-        $baseUrl = $modelType === 'embedding'
-            ? OpenAiRuntimeProvider::resolveEmbeddingBaseUrl($apiUrl)
-            : OpenAiRuntimeProvider::resolveChatBaseUrl($apiUrl);
-        if ($baseUrl === '') {
+        $endpoint = ModelEndpointResolver::fromParts(
+            apiUrl: (string) $model->api_url,
+            modelId: (string) $model->model_id,
+            modelType: $modelType,
+        );
+        if ($endpoint->baseUrl === '') {
             return '';
         }
-        if (OpenAiRuntimeProvider::isGeminiProviderUrl($baseUrl)) {
-            $modelName = preg_replace('#^models/#', '', trim((string) $model->model_id)) ?: trim((string) $model->model_id);
+        if ($endpoint->isGemini()) {
+            $modelName = preg_replace('#^models/#', '', $endpoint->modelId) ?: $endpoint->modelId;
 
-            return rtrim($baseUrl, '/').'/models/'.$modelName.($modelType === 'embedding' ? ':batchEmbedContents' : ':generateContent');
+            return rtrim($endpoint->baseUrl, '/').'/models/'.$modelName.($modelType === 'embedding' ? ':batchEmbedContents' : ':generateContent');
         }
-        if ($modelType === 'chat'
-            && OpenAiRuntimeProvider::resolveChatDriver($baseUrl, (string) $model->model_id) === 'openai') {
-            return rtrim($baseUrl, '/').'/responses';
-        }
-
-        if ($modelType === 'embedding'
-            && OpenAiRuntimeProvider::isVolcengineMultimodalEmbedding((string) $model->api_url, (string) $model->model_id)) {
-            return rtrim($baseUrl, '/').OpenAiRuntimeProvider::volcengineMultimodalEmbeddingPath();
+        if ($modelType === 'chat' && $endpoint->chatDriver() === 'openai') {
+            return rtrim($endpoint->baseUrl, '/').'/responses';
         }
 
-        return rtrim($baseUrl, '/').($modelType === 'embedding' ? '/embeddings' : '/chat/completions');
+        return $endpoint->requestEndpoint();
     }
 }

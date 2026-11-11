@@ -2,13 +2,19 @@
 
 namespace App\Services\GeoFlow;
 
+use App\Ai\Adapter\CallBudget;
+use App\Ai\Adapter\CallScene;
+use App\Ai\Adapter\ModelCallError;
+use App\Ai\Adapter\ModelEndpoint;
+use App\Ai\Adapter\ModelEndpointResolver;
+use App\Ai\Adapter\ProviderOptionsBuilder;
 use App\Ai\Agents\ArticleQualityJsonReviewerAgent;
 use App\Ai\Agents\ArticleQualityReviewerAgent;
 use App\Ai\Agents\LegacyArticleQualityReviewerAgent;
 use App\Contracts\ProviderAttemptAwareArticleAiQualityReviewer;
 use App\Exceptions\ArticleAiQualityRuntimeException;
 use App\Models\AiModel;
-use App\Services\Outbound\OutboundRequestFailedException;
+use App\Services\Admin\AiModelUsageAttempt;
 use App\Support\GeoFlow\ApiKeyCrypto;
 use App\Support\GeoFlow\OpenAiRuntimeProvider;
 use JsonException;
@@ -25,6 +31,7 @@ final readonly class LaravelArticleAiQualityReviewer implements ProviderAttemptA
         private AiUsageQuotaService $usageQuota,
         private ArticleAiQualityProviderCircuitBreaker $circuitBreaker,
         private ArticleAiQualityReadinessRecorder $readinessRecorder,
+        private ProviderOptionsBuilder $providerOptionsBuilder,
     ) {}
 
     public function review(AiModel $model, string $instructions): array
@@ -176,21 +183,32 @@ final readonly class LaravelArticleAiQualityReviewer implements ProviderAttemptA
         $externalRequestAttempted = false;
 
         try {
-            [$provider, $driver, $baseUrl] = $this->runtimeProvider($model);
+            [$provider, $driver, $baseUrl, $endpoint] = $this->runtimeProvider($model);
             $configuredMaxTokens = (int) config('geoflow.ai_quality_max_output_tokens', 2048);
             $modelMaxTokens = (int) ($model->max_tokens ?: $configuredMaxTokens);
             $maxTokens = max(512, min($configuredMaxTokens, $modelMaxTokens));
-            $providerOptions = $this->qualityProviderOptions($model, $driver, $baseUrl);
-            $timeout = max(1, min(
-                (int) config('geoflow.ai_quality_request_timeout_seconds', 160),
+            $providerOptions = $this->providerOptionsBuilder->build(
+                $endpoint,
+                CallScene::ArticleQuality,
+                $maxTokens,
+                estimatedInputTokens: $endpoint->contextLength !== null
+                    ? $endpoint->estimateTokens($instructions)
+                    : null,
+                baseUrl: $baseUrl,
+                injectTokenLimit: false,
+            );
+            $timeout = max(1, CallBudget::for(
+                $endpoint,
+                CallScene::ArticleQuality,
                 $timeoutSeconds,
-            ));
+            )->total);
             $mode = $this->readinessRecorder->prefersJson($model) ? 'json_fallback' : 'structured';
             $usesV2Schema = $executionVersion === 'fast_v2';
             $attemptStartedAt = hrtime(true);
 
             if ($mode === 'json_fallback') {
                 $providerUsageAttempt = $usageSession?->begin($mode);
+                $this->annotateUsageAttempt($providerUsageAttempt, $endpoint, $providerOptions, $maxTokens, 1);
                 $providerResponseReturned = false;
                 try {
                     $externalRequestAttempted = true;
@@ -219,6 +237,7 @@ final readonly class LaravelArticleAiQualityReviewer implements ProviderAttemptA
                 }
             } else {
                 $providerUsageAttempt = $usageSession?->begin('structured');
+                $this->annotateUsageAttempt($providerUsageAttempt, $endpoint, $providerOptions, $maxTokens, 1);
                 $providerResponseReturned = false;
                 try {
                     $externalRequestAttempted = true;
@@ -261,6 +280,7 @@ final readonly class LaravelArticleAiQualityReviewer implements ProviderAttemptA
                     $externalRequestAttempted = false;
                     $attemptStartedAt = hrtime(true);
                     $providerUsageAttempt = $usageSession?->begin($mode);
+                    $this->annotateUsageAttempt($providerUsageAttempt, $endpoint, $providerOptions, $maxTokens, 2);
                     $providerResponseReturned = false;
                     try {
                         $externalRequestAttempted = true;
@@ -321,48 +341,20 @@ final readonly class LaravelArticleAiQualityReviewer implements ProviderAttemptA
         }
     }
 
-    /** @return array{0:string,1:string,2:string} */
+    /** @return array{0:string,1:string,2:string,3:ModelEndpoint} */
     private function runtimeProvider(AiModel $model): array
     {
-        $baseUrl = OpenAiRuntimeProvider::resolveChatBaseUrl((string) ($model->api_url ?? ''));
+        $endpoint = ModelEndpointResolver::resolve($model);
+        $baseUrl = $endpoint->baseUrl;
         $apiKey = $this->apiKeyCrypto->decrypt((string) ($model->getRawOriginal('api_key') ?? ''));
         if ($baseUrl === '' || $apiKey === '' || trim((string) $model->model_id) === '') {
             throw new RuntimeException('ai_quality_model_configuration_incomplete');
         }
 
-        $driver = OpenAiRuntimeProvider::resolveChatDriver($baseUrl, (string) $model->model_id);
+        $driver = $endpoint->chatDriver();
         $provider = OpenAiRuntimeProvider::registerProvider('article_quality', $driver, $baseUrl, $apiKey);
 
-        return [$provider, $driver, $baseUrl];
-    }
-
-    /** @return array<string, mixed> */
-    private function qualityProviderOptions(AiModel $model, string $driver, string $baseUrl): array
-    {
-        if ($driver === 'deepseek') {
-            return ['thinking' => ['type' => 'disabled']];
-        }
-        if ($driver !== 'openai-compatible') {
-            return [];
-        }
-
-        $host = strtolower((string) parse_url($baseUrl, PHP_URL_HOST));
-        $modelId = strtolower(trim((string) $model->model_id));
-        if (str_ends_with($host, '.volces.com')) {
-            // 火山方舟推理接入点默认开启深度思考，质检请求会稳定超过单次超时上限。
-            return ['thinking' => ['type' => 'disabled']];
-        }
-        if (in_array($host, ['api.minimaxi.com', 'api.minimax.io'], true)
-            && str_starts_with($modelId, 'minimax-m')) {
-            return ['reasoning_split' => true];
-        }
-        if (in_array($host, ['open.bigmodel.cn', 'api.z.ai'], true)
-            && preg_match('/^glm-(\d+)(?:\.(\d+))?(?:-|$)/', $modelId, $version) === 1
-            && ((int) $version[1] > 4 || ((int) $version[1] === 4 && (int) ($version[2] ?? 0) >= 5))) {
-            return ['thinking' => ['type' => 'disabled'], 'response_format' => ['type' => 'json_object']];
-        }
-
-        return [];
+        return [$provider, $driver, $baseUrl, $endpoint];
     }
 
     /** @return array<string, mixed> */
@@ -414,118 +406,43 @@ final readonly class LaravelArticleAiQualityReviewer implements ProviderAttemptA
             return $exception;
         }
 
-        [$status, $providerCode, $normalized, $types] = $this->providerFailureContext($exception, $baseUrl);
-        $safeCode = match (true) {
-            $status === 402, str_contains($types, 'providercategory:quota_exhausted') => 'provider_quota_exhausted',
-            $status === 401, $status === 403, str_contains($normalized, 'auth'), str_contains($normalized, 'api key') => 'provider_authentication_failed',
-            $status === 429, str_contains($types, 'transportcategory:rate_limited'), str_contains($normalized, 'rate limit') => 'provider_rate_limited',
-            str_contains($types, 'transportcategory:timeout'), str_contains($types, 'timeoutexception'), str_contains($normalized, 'timeout'), str_contains($normalized, 'timed out') => 'provider_timeout',
-            in_array($status, [502, 503, 504], true),
-            str_contains($types, 'transportcategory:gateway'),
-            str_contains($types, 'transportcategory:connection'),
-            str_contains($types, 'transportcategory:dns'),
-            str_contains($types, 'transportcategory:tls'),
-            str_contains($types, 'connectexception'),
-            str_contains($normalized, 'gateway') => 'provider_gateway_error',
-            str_contains($normalized, 'quota'), str_contains($normalized, 'credit') => 'provider_quota_exhausted',
-            str_contains($normalized, 'maximum output token'),
-            str_contains($normalized, 'max output token'),
-            str_contains($normalized, 'output token limit'),
-            str_contains($normalized, 'output budget') => 'output_budget_exhausted',
-            str_contains($normalized, 'truncated'),
-            str_contains($normalized, 'finish reason: length'),
-            str_contains($normalized, 'finish_reason=length') => 'model_output_truncated',
-            str_contains($normalized, 'structured'), str_contains($normalized, 'schema') => 'structured_output_unsupported',
-            default => 'provider_error',
-        };
+        $diagnosis = ModelCallError::diagnose($exception, $baseUrl);
+        $error = $diagnosis['error'];
 
         return new ArticleAiQualityRuntimeException(
-            $safeCode,
-            in_array($safeCode, [
-                'provider_timeout',
-                'provider_rate_limited',
-                'provider_gateway_error',
-                'structured_output_unsupported',
-                'model_output_truncated',
-                'output_budget_exhausted',
-            ], true),
+            $error->legacyQualityCode(),
+            $error->retryable(),
             $previous ?? $exception,
-            $status,
-            $providerCode,
-            OutboundRequestFailedException::retryAfterSeconds($exception),
+            $diagnosis['status'],
+            $diagnosis['provider_code'],
+            $diagnosis['retry_after'],
         );
     }
 
-    /** @return array{?int,?string,string,string} */
-    private function providerFailureContext(Throwable $exception, string $baseUrl): array
-    {
-        $status = null;
-        $providerCode = null;
-        $messages = [];
-        $types = [];
-        $current = $exception;
-        for ($depth = 0; $depth < 8 && $current instanceof Throwable; $depth++) {
-            $types[] = strtolower($current::class);
-            if ($current instanceof OutboundRequestFailedException
-                && is_string($current->causeType)) {
-                $types[] = strtolower($current->causeType);
-            }
-            if ($current instanceof OutboundRequestFailedException) {
-                $types[] = 'transportcategory:'.$current->transportCategory;
-                $types[] = 'providercategory:'.$current->providerCategory;
-            }
-            $message = trim(OpenAiRuntimeProvider::normalizeApiException($current, $baseUrl));
-            if ($message !== '') {
-                $messages[] = $message;
-            }
-            $response = null;
-            if (isset($current->response) && is_object($current->response)) {
-                $response = $current->response;
-            } elseif (method_exists($current, 'getResponse')) {
-                $candidateResponse = $current->getResponse();
-                $response = is_object($candidateResponse) ? $candidateResponse : null;
-            }
-            $candidateStatus = $current instanceof OutboundRequestFailedException
-                ? $current->httpStatus
-                : null;
-            if ($status === null && is_int($candidateStatus) && $candidateStatus >= 100 && $candidateStatus <= 599) {
-                $status = $candidateStatus;
-            }
-            if ($status === null && $current->getCode() >= 100 && $current->getCode() <= 599) {
-                $status = (int) $current->getCode();
-            }
-            if ($status === null && $response !== null) {
-                if (method_exists($response, 'status')) {
-                    $candidateStatus = $response->status();
-                    $status = is_int($candidateStatus) ? $candidateStatus : null;
-                } elseif (method_exists($response, 'getStatusCode')) {
-                    $candidateStatus = $response->getStatusCode();
-                    $status = is_int($candidateStatus) ? $candidateStatus : null;
-                }
-            }
-            $candidateProviderCode = $current instanceof OutboundRequestFailedException
-                ? $current->providerCode
-                : null;
-            if ($candidateProviderCode === null && $response !== null && method_exists($response, 'json')) {
-                $payload = $response->json();
-                $error = is_array($payload) && is_array($payload['error'] ?? null) ? $payload['error'] : [];
-                $candidate = $error['code'] ?? $error['type'] ?? null;
-                $candidateProviderCode = is_string($candidate) && preg_match('/^[A-Za-z0-9_.:-]{1,80}$/', $candidate) === 1
-                    ? $candidate
-                    : null;
-            }
-            if ($providerCode === null && is_string($candidateProviderCode) && $candidateProviderCode !== '') {
-                $providerCode = $candidateProviderCode;
-            }
-            $current = $current->getPrevious();
+    /**
+     * @param  array<string, mixed>  $providerOptions
+     */
+    private function annotateUsageAttempt(
+        ?AiModelUsageAttempt $attempt,
+        ModelEndpoint $endpoint,
+        array $providerOptions,
+        int $maxTokens,
+        int $attemptNumber,
+    ): void {
+        if ($attempt === null) {
+            return;
         }
 
-        return [
-            $status,
-            $providerCode,
-            strtolower(implode("\n", $messages)),
-            implode("\n", $types),
-        ];
+        $attempt->context([
+            'protocol' => $endpoint->protocol->value,
+            'thinking_mode' => $this->providerOptionsBuilder->thinkingModeApplied(
+                $endpoint,
+                CallScene::ArticleQuality,
+                $providerOptions,
+            ),
+            'max_tokens_applied' => $maxTokens,
+            'attempt' => $attemptNumber,
+        ]);
     }
 
     private function recordReadinessAttempt(
