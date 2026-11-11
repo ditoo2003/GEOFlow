@@ -348,6 +348,10 @@ final readonly class LaravelArticleAiQualityReviewer implements ProviderAttemptA
 
         $host = strtolower((string) parse_url($baseUrl, PHP_URL_HOST));
         $modelId = strtolower(trim((string) $model->model_id));
+        if (str_ends_with($host, '.volces.com')) {
+            // 火山方舟推理接入点默认开启深度思考，质检请求会稳定超过单次超时上限。
+            return ['thinking' => ['type' => 'disabled']];
+        }
         if (in_array($host, ['api.minimaxi.com', 'api.minimax.io'], true)
             && str_starts_with($modelId, 'minimax-m')) {
             return ['reasoning_split' => true];

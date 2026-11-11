@@ -224,7 +224,7 @@ return [
     'title_ai_lease_seconds' => max(420, min(600, (int) env('GEOFLOW_TITLE_AI_LEASE_SECONDS', 420))),
     'title_ai_recovery_stale_seconds' => max(60, min(3600, (int) env('GEOFLOW_TITLE_AI_RECOVERY_STALE_SECONDS', 300))),
     // 文章 AI 质检的全文预算、抽样降级预算、模型输出和证据预算。
-    'ai_quality_request_timeout_seconds' => max(30, min(170, (int) env('GEOFLOW_AI_QUALITY_REQUEST_TIMEOUT_SECONDS', 160))),
+    'ai_quality_request_timeout_seconds' => max(30, min(300, (int) env('GEOFLOW_AI_QUALITY_REQUEST_TIMEOUT_SECONDS', 160))),
     'ai_quality_deadline_seconds' => max(60, min(600, (int) env('GEOFLOW_AI_QUALITY_DEADLINE_SECONDS', 180))),
     'ai_quality_sampled_fallback_seconds' => max(15, min(300, (int) env('GEOFLOW_AI_QUALITY_SAMPLED_FALLBACK_SECONDS', 45))),
     'ai_quality_sampled_request_timeout_seconds' => max(10, min(120, (int) env('GEOFLOW_AI_QUALITY_SAMPLED_REQUEST_TIMEOUT_SECONDS', 35))),
@@ -232,7 +232,7 @@ return [
     'ai_quality_sampled_max_ranges' => max(3, min(24, (int) env('GEOFLOW_AI_QUALITY_SAMPLED_MAX_RANGES', 12))),
     'ai_quality_full_online_max_characters' => max(12000, min(200000, (int) env('GEOFLOW_AI_QUALITY_FULL_ONLINE_MAX_CHARACTERS', 60000))),
     'ai_quality_sampled_auto_release_enabled' => filter_var(env('GEOFLOW_AI_QUALITY_SAMPLED_AUTO_RELEASE_ENABLED', true), FILTER_VALIDATE_BOOL),
-    'ai_quality_max_output_tokens' => max(512, min(4096, (int) env('GEOFLOW_AI_QUALITY_MAX_OUTPUT_TOKENS', 2048))),
+    'ai_quality_max_output_tokens' => max(512, min(8192, (int) env('GEOFLOW_AI_QUALITY_MAX_OUTPUT_TOKENS', 2048))),
     'ai_quality_max_model_candidates' => max(1, min(2, (int) env('GEOFLOW_AI_QUALITY_MAX_MODEL_CANDIDATES', 2))),
     'ai_quality_max_evidence' => max(4, min(24, (int) env('GEOFLOW_AI_QUALITY_MAX_EVIDENCE', 12))),
     'ai_quality_max_evidence_characters' => max(2000, min(12000, (int) env('GEOFLOW_AI_QUALITY_MAX_EVIDENCE_CHARACTERS', 6000))),

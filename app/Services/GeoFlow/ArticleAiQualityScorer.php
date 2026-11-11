@@ -22,6 +22,7 @@ class ArticleAiQualityScorer
         'ad_industry_specific' => 'advertising_compliance',
         'ad_identifiability' => 'advertising_compliance',
         'content_integrity' => 'content_integrity',
+        'source_declared_unverified' => 'knowledge_consistency',
     ];
 
     private const SEVERITY_DEDUCTIONS = [
@@ -75,7 +76,8 @@ class ArticleAiQualityScorer
             }
 
             if (! array_key_exists((string) ($issue['code'] ?? ''), self::CODE_DIMENSIONS)) {
-                throw new \InvalidArgumentException('AI quality issue code is invalid.');
+                // 部分 OpenAI 兼容端点不强制校验 JSON Schema 枚举，未知 issue code 归入内容完整性维度。
+                $issue['code'] = 'content_integrity';
             }
 
             $knowledgeRefs = is_array($issue['knowledge_refs'] ?? null) ? $issue['knowledge_refs'] : [];
