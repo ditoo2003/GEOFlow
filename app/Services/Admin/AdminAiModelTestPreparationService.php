@@ -3,6 +3,7 @@
 namespace App\Services\Admin;
 
 use App\Ai\Adapter\ModelEndpointResolver;
+use App\Ai\Adapter\Protocol;
 use App\Data\Admin\AdminAiModelTestSnapshot;
 use App\Data\AiWorkspace\AiWorkspaceModelProbeResult;
 use App\Exceptions\AiModelAccessException;
@@ -59,7 +60,11 @@ final class AdminAiModelTestPreparationService
                 maxTokens: $lockedModel->max_tokens === null ? null : (int) $lockedModel->max_tokens,
                 gemini: $resolved->isGemini(),
                 volcengineMultimodal: $modelType === 'embedding' && $resolved->isMultimodalEmbedding(),
-                usesOpenAiResponses: $modelType === 'chat' && $resolved->chatDriver() === 'openai',
+                usesOpenAiResponses: $modelType === 'chat' && in_array(
+                    $resolved->protocol,
+                    [Protocol::OpenAiResponses, Protocol::VolcengineResponses],
+                    true,
+                ),
                 preparedAsSuperAdmin: $lockedActor->isSuperAdmin(),
                 reservation: $reservation,
                 encryptedApiKey: $encryptedApiKey,
@@ -346,10 +351,9 @@ final class AdminAiModelTestPreparationService
 
             return rtrim($endpoint->baseUrl, '/').'/models/'.$modelName.($modelType === 'embedding' ? ':batchEmbedContents' : ':generateContent');
         }
-        if ($modelType === 'chat' && $endpoint->chatDriver() === 'openai') {
-            return rtrim($endpoint->baseUrl, '/').'/responses';
-        }
 
+        // 以协议为唯一来源：显式声明 openai_chat 时就走 /chat/completions，
+        // 不再因为 chatDriver()==='openai' 被强制改写成 /responses。
         return $endpoint->requestEndpoint();
     }
 }

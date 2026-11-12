@@ -148,6 +148,7 @@ final class EndpointDeclaration
         string $modelType,
         ?string $protocol,
         ?array $capabilities,
+        ?array $timeoutProfile = null,
     ): array {
         $errors = [];
         $modelType = trim($modelType) === 'embedding' ? 'embedding' : 'chat';
@@ -199,7 +200,44 @@ final class EndpointDeclaration
             }
         }
 
+        if (is_array($timeoutProfile)) {
+            $timeoutError = self::timeoutProfileError($timeoutProfile);
+            if ($timeoutError !== null) {
+                $errors['timeout_profile'] = $timeoutError;
+            }
+        }
+
         return $errors;
+    }
+
+    /**
+     * 超时画像要么三项齐全、要么全部留空；且必须满足 connect ≤ read ≤ total。
+     *
+     * 只填部分字段会被归一化成带 null 的数组，旧行为是静默丢弃未填项，
+     * 导致运营以为"只改 read"生效，实际整条画像被 min() 跳过。
+     *
+     * @param  array<string, mixed>  $profile
+     */
+    private static function timeoutProfileError(array $profile): ?string
+    {
+        $values = [
+            'connect' => self::nullableInt($profile['connect'] ?? null),
+            'read' => self::nullableInt($profile['read'] ?? null),
+            'total' => self::nullableInt($profile['total'] ?? null),
+        ];
+
+        $filled = array_filter($values, static fn (?int $value): bool => $value !== null);
+        if ($filled === []) {
+            return null;
+        }
+        if (count($filled) !== 3) {
+            return __('admin.ai_models.error.timeout_profile_incomplete');
+        }
+        if ($values['connect'] > $values['read'] || $values['read'] > $values['total']) {
+            return __('admin.ai_models.error.timeout_profile_unordered');
+        }
+
+        return null;
     }
 
     private static function nullableInt(mixed $value): ?int

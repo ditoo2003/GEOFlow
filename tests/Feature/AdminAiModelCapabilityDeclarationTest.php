@@ -123,6 +123,53 @@ final class AdminAiModelCapabilityDeclarationTest extends TestCase
         $this->assertStringContainsString('多模态 Embeddings', (string) $response->json('message'));
     }
 
+    public function test_partial_timeout_profile_is_rejected_instead_of_silently_dropped(): void
+    {
+        $admin = $this->createAdmin();
+
+        $this->actingAs($admin, 'admin')
+            ->from(route('admin.ai-models.create'))
+            ->post(route('admin.ai-models.store'), $this->payload([
+                'timeout_profile' => ['connect' => 5, 'read' => 60, 'total' => ''],
+            ]))
+            ->assertRedirect(route('admin.ai-models.create'))
+            ->assertSessionHasErrors([
+                'timeout_profile' => __('admin.ai_models.error.timeout_profile_incomplete'),
+            ]);
+
+        $this->assertDatabaseMissing('ai_models', ['model_id' => 'capability-model']);
+    }
+
+    public function test_declared_openai_chat_protocol_is_used_by_the_connection_test(): void
+    {
+        Http::preventStrayRequests();
+        $endpoint = 'https://api.openai.com/v1/chat/completions';
+        Http::fake([
+            $endpoint => Http::response([
+                'choices' => [['message' => ['content' => 'OK']]],
+            ]),
+        ]);
+
+        $admin = $this->createAdmin();
+        $model = $this->createModel($admin, [
+            'model_type' => 'chat',
+            'model_id' => 'gpt-4o',
+            'api_url' => 'https://api.openai.com/v1',
+            'provider_key' => 'openai',
+            'protocol' => Protocol::OpenAiChat->value,
+            'capabilities' => ['chat'],
+        ]);
+
+        $this->actingAs($admin, 'admin')
+            ->postJson(route('admin.ai-models.test', ['modelId' => $model->id]))
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('meta.endpoint', $endpoint);
+
+        Http::assertSent(fn ($request): bool => $request->url() === $endpoint);
+        Http::assertNotSent(fn ($request): bool => str_ends_with($request->url(), '/responses'));
+    }
+
     public function test_updating_a_legacy_model_keeps_capability_columns_null_and_behaviour_unchanged(): void
     {
         $admin = $this->createAdmin();

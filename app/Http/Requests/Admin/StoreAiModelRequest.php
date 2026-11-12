@@ -60,6 +60,7 @@ final class StoreAiModelRequest extends FormRequest
                     is_string($modelType) ? $modelType : 'chat',
                     $declaration['protocol'],
                     $declaration['capabilities'],
+                    $declaration['timeout_profile'],
                 ) as $field => $message) {
                     $validator->errors()->add($field, $message);
                 }
