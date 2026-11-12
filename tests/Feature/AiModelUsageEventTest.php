@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Ai\Adapter\CallScene;
 use App\Data\Ai\SystemAiIdentity;
 use App\Models\Admin;
 use App\Models\AiModel;
@@ -17,6 +18,7 @@ use Illuminate\Database\Query\Grammars\PostgresGrammar;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -800,6 +802,58 @@ class AiModelUsageEventTest extends TestCase
             'total_tokens' => 0,
             'created_at' => now(),
         ];
+    }
+
+    public function test_ledger_records_the_applied_thinking_mode_when_nothing_is_declared(): void
+    {
+        $owner = $this->admin('thinking-owner', 'super_admin');
+        $model = $this->model($owner, AiModel::ACCESS_SCOPE_SYSTEM_ONLY);
+        // GLM 4.0 不支持 thinking 参数，质检的关闭动作实际无法下发。
+        $model->forceFill([
+            'api_url' => 'https://open.bigmodel.cn/api/paas/v4',
+            'model_id' => 'glm-4',
+        ])->save();
+
+        $factory = app(AiModelUsageAttemptFactory::class);
+        $factory->beginForSystem(
+            model: $model->fresh(),
+            identity: SystemAiIdentity::knowledgeIndex(),
+            requestId: $factory->requestId(),
+            requestPayload: 'quality payload',
+            callKey: 'quality.glm4',
+            operation: 'article.ai_quality',
+            businessSource: 'article_quality',
+            scene: CallScene::ArticleQuality,
+        );
+
+        $start = AiModelUsageAttemptStart::query()->sole();
+        $this->assertSame('disabled-unavailable', $start->thinking_mode);
+    }
+
+    public function test_ledger_attempt_warns_when_payload_exceeds_the_declared_context_window(): void
+    {
+        Log::spy();
+
+        $owner = $this->admin('context-owner', 'super_admin');
+        $model = $this->model($owner, AiModel::ACCESS_SCOPE_SYSTEM_ONLY);
+        $model->forceFill(['context_length' => 16])->save();
+
+        $factory = app(AiModelUsageAttemptFactory::class);
+        $factory->beginForSystem(
+            model: $model->fresh(),
+            identity: SystemAiIdentity::knowledgeIndex(),
+            requestId: $factory->requestId(),
+            requestPayload: str_repeat('长文输入', 500),
+            callKey: 'quality.context',
+            operation: 'article.ai_quality',
+            businessSource: 'article_quality',
+            scene: CallScene::ArticleQuality,
+        );
+
+        Log::shouldHaveReceived('warning')->withArgs(
+            fn (string $message, array $context): bool => $message === 'ai_context_length_exceeded'
+                && $context['context_length'] === 16,
+        )->once();
     }
 
     /** @param array<string, mixed> $overrides */
