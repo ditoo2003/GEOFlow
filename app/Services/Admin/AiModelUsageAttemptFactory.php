@@ -256,11 +256,16 @@ final readonly class AiModelUsageAttemptFactory
     }
 
     /**
-     * 约定 call_key 以尝试序号结尾：candidate-2 / provider-1 / attempt-3。
+     * 仅识别约定后缀（candidate-2 / provider-1 / attempt-3 / :4），
+     * 避免把模型 ID 等纯数字尾串误判为尝试序号。
      */
     private function attemptFromCallKey(string $callKey): ?int
     {
-        return preg_match('/(\d+)$/', $callKey, $matches) === 1 ? (int) $matches[1] : null;
+        if (preg_match('/(?:attempt|candidate|provider|stage|call)[-_.:]?(\d+)$/i', $callKey, $matches) === 1) {
+            return (int) $matches[1];
+        }
+
+        return preg_match('/:(\d+)$/', $callKey, $matches) === 1 ? (int) $matches[1] : null;
     }
 
     private function warnSafely(Throwable $exception): void
