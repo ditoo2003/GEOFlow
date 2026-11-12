@@ -144,7 +144,7 @@ class AdminUiV3RouteRegistryTest extends TestCase
                 && $registry->routeClassification($name) === 'shell')
             ->values();
 
-        $this->assertCount(131, $shellRouteNames);
+        $this->assertCount(132, $shellRouteNames);
         $this->assertEqualsCanonicalizing([
             'admin.topics.index', 'admin.topics.create', 'admin.topics.articles', 'admin.topics.settings',
             'admin.topics.batches.create', 'admin.topics.batches.show', 'admin.topics.runs.show',
@@ -188,7 +188,7 @@ class AdminUiV3RouteRegistryTest extends TestCase
             ->unique()
             ->values();
 
-        $this->assertCount(134, $routeNames);
+        $this->assertCount(135, $routeNames);
 
         foreach (array_keys(AdminWeb::supportedLocales()) as $locale) {
             App::setLocale($locale);

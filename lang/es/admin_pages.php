@@ -27,6 +27,7 @@ return [
     'lead_analytics' => 'Análisis de leads',
     'distribution_analytics' => 'Análisis de distribución',
     'link_pool' => 'Campañas de enlaces internos',
+    'usage_quota' => 'Uso y cuotas',
     'tasks' => 'Gestión de tareas',
     'task_workers' => 'Monitor de workers',
     'task_jobs' => 'Historial de tareas',

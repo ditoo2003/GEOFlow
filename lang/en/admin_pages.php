@@ -27,6 +27,7 @@ return [
     'lead_analytics' => 'Lead Analytics',
     'distribution_analytics' => 'Distribution Analytics',
     'link_pool' => 'Internal Link Campaigns',
+    'usage_quota' => 'Usage & Quotas',
     'tasks' => 'Task Management',
     'task_workers' => 'Worker Monitor',
     'task_jobs' => 'Task Runs',

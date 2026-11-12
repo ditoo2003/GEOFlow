@@ -60,6 +60,11 @@ final class AdminUiRegistry
                 'patterns' => ['admin.link-pool.*'], 'recent_tone' => 'blue',
             ],
             [
+                'key' => 'usage_quota', 'group' => 'system', 'label_key' => 'admin.nav.usage_quota',
+                'icon' => 'gauge', 'route' => 'admin.usage.index', 'protected' => false,
+                'patterns' => ['admin.usage.*'], 'recent_tone' => 'amber',
+            ],
+            [
                 'key' => 'ai_config', 'group' => 'system', 'label_key' => 'admin.nav.ai_config',
                 'icon' => 'network', 'route' => 'admin.ai.configurator', 'protected' => false,
                 'patterns' => [
@@ -137,6 +142,7 @@ final class AdminUiRegistry
             'admin.analytics.ai-visibility' => ['key' => 'ai_visibility', 'icon' => 'eye', 'body_heading' => 'hidden'],
             'admin.analytics.leads' => ['key' => 'lead_analytics', 'icon' => 'users-round', 'body_heading' => 'hidden'],
             'admin.analytics.distribution' => ['key' => 'distribution_analytics', 'icon' => 'radio-tower', 'body_heading' => 'hidden'],
+            'admin.usage.index' => ['key' => 'usage_quota', 'icon' => 'gauge', 'body_heading' => 'hidden'],
             'admin.link-pool.overview' => ['key' => 'link_pool', 'icon' => 'link-2', 'body_heading' => 'hidden'],
             'admin.link-pool.targets' => ['key' => 'link_pool', 'icon' => 'link-2', 'body_heading' => 'hidden'],
             'admin.link-pool.import.form' => ['key' => 'link_pool', 'icon' => 'link-2', 'body_heading' => 'hidden'],

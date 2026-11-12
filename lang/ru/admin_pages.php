@@ -27,6 +27,7 @@ return [
     'lead_analytics' => 'Аналитика лидов',
     'distribution_analytics' => 'Аналитика публикаций',
     'link_pool' => 'Кампании внутренних ссылок',
+    'usage_quota' => 'Использование и квоты',
     'tasks' => 'Управление задачами',
     'task_workers' => 'Мониторинг Worker',
     'task_jobs' => 'История задач',

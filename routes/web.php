@@ -65,6 +65,7 @@ use App\Http\Controllers\Admin\SiteThemeReplicationController;
 use App\Http\Controllers\Admin\SystemUpdateController;
 use App\Http\Controllers\Admin\SystemUpdaterOperationController;
 use App\Http\Controllers\Admin\TaskController;
+use App\Http\Controllers\Admin\TenantUsageController;
 use App\Http\Controllers\Admin\TitleLibraryController;
 use App\Http\Controllers\Admin\TrafficAnalyticsController;
 use App\Http\Controllers\Admin\UrlChangeController;
@@ -243,6 +244,12 @@ Route::prefix($adminPrefix)->name('admin.')->middleware(['admin.locale'])->group
                 ->middleware('admin.super')
                 ->name('distribution');
         });
+
+        Route::get('usage', [TenantUsageController::class, 'index'])->name('usage.index');
+        Route::put('usage/tenant/{tenantId}/quota', [TenantUsageController::class, 'updateQuota'])
+            ->whereNumber('tenantId')
+            ->middleware(['admin.super', 'throttle:admin-sensitive'])
+            ->name('usage.quota.update');
 
         Route::prefix('system-updates')->name('system-updates.')->middleware('admin.super')->group(function () {
             Route::get('/', [SystemUpdateController::class, 'index'])->name('index');

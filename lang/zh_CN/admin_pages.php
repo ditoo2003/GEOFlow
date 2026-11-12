@@ -27,6 +27,7 @@ return [
     'lead_analytics' => '线索分析',
     'distribution_analytics' => '分发分析',
     'link_pool' => '内链投放',
+    'usage_quota' => '用量与配额',
     'tasks' => '任务管理',
     'task_workers' => 'Worker 监控',
     'task_jobs' => '任务记录',
