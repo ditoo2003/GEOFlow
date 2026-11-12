@@ -148,6 +148,10 @@ return [
         'ai_workspace_trace_events',
         'ai_quality_audit_events',
 
+        // 计费计量与配额告警
+        'tenant_usage_events',
+        'tenant_quota_alerts',
+
         // 文章 AI 质检 / 优化（按文章归属租户）
         'article_ai_quality_checks',
         'article_ai_quality_check_sources',

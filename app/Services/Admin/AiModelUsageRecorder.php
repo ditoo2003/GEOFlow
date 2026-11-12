@@ -3,6 +3,7 @@
 namespace App\Services\Admin;
 
 use App\Models\AiModelUsageEvent;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Validator;
@@ -77,7 +78,13 @@ final class AiModelUsageRecorder
             'attempt' => ['nullable', 'integer', 'min:1'],
         ])->validate();
 
-        $attributes = [...$accessSnapshot->toUsageAttributes(), ...$attributes];
+        // 用量行必须显式带租户归属：该表带 RLS，WITH CHECK 会拒绝/静默丢弃归属错误的行，
+        // 而 Eloquent creating 钩子不覆盖系统上下文。系统上下文回落默认租户以保持单站兼容。
+        $attributes = [
+            'tenant_id' => app(TenantContext::class)->tenantIdOrDefault(),
+            ...$accessSnapshot->toUsageAttributes(),
+            ...$attributes,
+        ];
         $payloadFingerprint = $this->payloadFingerprint($attributes);
 
         DB::table((new AiModelUsageEvent)->getTable())->insertOrIgnore([

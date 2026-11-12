@@ -952,6 +952,11 @@
       "name": "2026_11_12_100600_create_runtime_database_role",
       "sha256": "048c1ff46d1d2aeaff88b3fdf74b6a3718e5e87b718b92b8ddca2e45391f62b7",
       "online": false
+    },
+    {
+      "name": "2026_11_13_100000_create_tenant_usage_tables",
+      "sha256": "c8258b26a29faf327bc75bdf769b378d056ebb226db337a31ca8feda6060de1e",
+      "online": false
     }
   ],
   "compatibility": {

@@ -8,6 +8,7 @@ use App\Models\Article;
 use App\Models\ArticleAiQualityCheck;
 use App\Models\ArticleReview;
 use App\Models\Task;
+use App\Services\Billing\TenantUsageMeter;
 use App\Support\GeoFlow\ArticleWorkflow;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
@@ -18,6 +19,7 @@ class ArticleWorkflowTransitionService
         private readonly ArticlePublicationQualityGate $publicationQualityGate,
         private readonly ArticlePublicationEligibilityService $publicationEligibility,
         private readonly ArticlePublicationDeliveryService $publicationDelivery,
+        private readonly TenantUsageMeter $usageMeter,
     ) {}
 
     public function contentChanged(Article $article, ?int $adminId = null): Article
@@ -118,6 +120,7 @@ class ArticleWorkflowTransitionService
             if ($action === 'publish' && $locked->status === 'published' && $locked->publication_intent === 'none') {
                 $published = true;
                 $outboundFence = $eligibility->fence($locked, 'manual');
+                $this->usageMeter->recordPublishedArticle($locked);
                 $this->publicationDelivery->request($locked, $outboundFence, reconcileCompleted: true);
 
                 return $locked;
@@ -168,6 +171,9 @@ class ArticleWorkflowTransitionService
                 'status' => 'published', 'review_status' => $eligibility->reviewStatus($locked), 'published_at' => now(),
             ], $task?->publish_scope);
             $locked->update($state + ['publication_intent' => 'none']);
+            if ((string) $locked->status === 'published') {
+                $this->usageMeter->recordPublishedArticle($locked);
+            }
             $outboundFence = $eligibility->fence($locked, 'manual');
             $this->publicationDelivery->request($locked, $outboundFence);
             $published = true;
@@ -294,6 +300,10 @@ class ArticleWorkflowTransitionService
 
             if ($trigger === 'worker_publish') {
                 $this->publicationDelivery->request($lockedArticle, $eligibility->fence($lockedArticle));
+            }
+
+            if ((string) $lockedArticle->status === 'published') {
+                $this->usageMeter->recordPublishedArticle($lockedArticle);
             }
 
             return $lockedArticle->refresh();
