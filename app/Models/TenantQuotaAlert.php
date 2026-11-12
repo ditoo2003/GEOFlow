@@ -17,6 +17,8 @@ class TenantQuotaAlert extends Model
 
     public const LEVEL_BLOCK = 'block';
 
+    public const LEVEL_DEGRADE_UNAVAILABLE = 'degrade_unavailable';
+
     protected $guarded = ['*'];
 
     protected function casts(): array

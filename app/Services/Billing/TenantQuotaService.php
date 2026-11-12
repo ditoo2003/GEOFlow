@@ -118,6 +118,8 @@ final class TenantQuotaService
             );
         }
 
+        app(TenantQuotaAlertService::class)->evaluate($tenantId);
+
         $quota = $this->plans->articleQuota($tenantId);
         if ($quota > 0 && $this->monthlyPublishedCount($tenantId) >= $quota) {
             throw new ApiException('tenant_quota_exceeded', sprintf(
@@ -159,5 +161,43 @@ final class TenantQuotaService
     public function currentPeriod(): string
     {
         return Carbon::now()->format('Y-m');
+    }
+
+    /**
+     * token 成本护栏档位：normal | degrade | block。
+     *
+     * 只依赖内部用量，不对外报价；预算未配置（<=0）时不启用护栏。
+     */
+    public function tokenPressure(int $tenantId): string
+    {
+        $budget = $this->plans->tokenBudget($tenantId);
+        if ($budget <= 0) {
+            return 'normal';
+        }
+
+        $usage = $this->monthlyTokenUsage($tenantId);
+        $blockRatio = (float) config('billing.block_ratio', 1.0);
+        $degradeRatio = (float) config('billing.degrade_ratio', 0.8);
+
+        if ($blockRatio > 0 && $usage >= (int) ceil($budget * $blockRatio)) {
+            return 'block';
+        }
+
+        if ($degradeRatio > 0 && $usage >= (int) ceil($budget * $degradeRatio)) {
+            return 'degrade';
+        }
+
+        return 'normal';
+    }
+
+    /** 综合档位：篇数或 token 任一耗尽即 block；token 达降级线为 degrade。 */
+    public function pressure(int $tenantId): string
+    {
+        $quota = $this->plans->articleQuota($tenantId);
+        if ($quota > 0 && $this->monthlyPublishedCount($tenantId) >= $quota) {
+            return 'block';
+        }
+
+        return $this->tokenPressure($tenantId);
     }
 }

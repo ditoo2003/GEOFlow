@@ -30,9 +30,10 @@ final class TenantUsageMeter
         $occurredAt = $article->published_at instanceof \DateTimeInterface
             ? Carbon::instance($article->published_at)
             : now();
+        $tenantId = $this->tenantIdFor($article);
 
-        return DB::table('tenant_usage_events')->insertOrIgnore([
-            'tenant_id' => $this->tenantIdFor($article),
+        $inserted = DB::table('tenant_usage_events')->insertOrIgnore([
+            'tenant_id' => $tenantId,
             'meter' => TenantUsageEvent::METER_PUBLISHED_ARTICLES,
             'quantity' => 1,
             'source_type' => 'article',
@@ -48,6 +49,12 @@ final class TenantUsageMeter
             'created_at' => now(),
             'updated_at' => now(),
         ]) > 0;
+
+        if ($inserted) {
+            app(TenantQuotaAlertService::class)->evaluate($tenantId);
+        }
+
+        return $inserted;
     }
 
     /**

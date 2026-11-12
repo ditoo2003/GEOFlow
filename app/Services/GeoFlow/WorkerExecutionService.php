@@ -19,8 +19,12 @@ use App\Models\KnowledgeChunk;
 use App\Models\Prompt;
 use App\Models\Task;
 use App\Models\Title;
+use App\Services\Billing\TenantPlanCatalog;
+use App\Services\Billing\TenantQuotaAlertService;
+use App\Services\Billing\TenantQuotaService;
 use App\Services\Site\UrlChangeInspector;
 use App\Services\Topics\TopicTaskRunner;
+use App\Tenancy\TenantContext;
 use App\Support\GeoFlow\AiExecutionErrorSanitizer;
 use App\Support\GeoFlow\AiModelFailoverDecider;
 use App\Support\GeoFlow\ArticleWorkflow;
@@ -587,7 +591,7 @@ class WorkerExecutionService
     {
         $primaryModel = $this->resolveConfiguredAiModel($task, $executionContext);
         if (($task->model_selection_mode ?? 'fixed') !== 'smart_failover') {
-            return [$this->resolveAiModel($task, $executionContext)];
+            return $this->applyQuotaDowngrade($task, $executionContext, [$this->resolveAiModel($task, $executionContext)]);
         }
 
         $scopedCandidates = $this->aiExecutionAccessGuard->resolveModelCandidates($executionContext, 'chat');
@@ -596,7 +600,68 @@ class WorkerExecutionService
             static fn (AiModel $model): bool => (int) $model->getKey() !== (int) $primaryModel->getKey(),
         ));
 
-        return array_values(array_merge([$primaryModel], $fallbackModels));
+        return $this->applyQuotaDowngrade($task, $executionContext, array_values(array_merge([$primaryModel], $fallbackModels)));
+    }
+
+    /**
+     * token 成本护栏降级：达到套餐降级阈值时把低成本模型放到首候选，
+     * 原模型保留为后续 failover 候选。降级模型不可用、越权或解析失败时保持原候选并告警，
+     * 绝不让降级路径中断 job。
+     *
+     * @param  list<AiModel>  $candidates
+     * @return list<AiModel>
+     */
+    private function applyQuotaDowngrade(Task $task, AiExecutionContext $executionContext, array $candidates): array
+    {
+        try {
+            $tenantId = app(TenantContext::class)->tenantId();
+            if ($tenantId === null) {
+                $taskTenantId = $task->getAttribute('tenant_id');
+                $tenantId = is_numeric($taskTenantId) ? (int) $taskTenantId : null;
+            }
+            if ($tenantId === null) {
+                return $candidates;
+            }
+
+            $quota = app(TenantQuotaService::class);
+            if ($quota->tokenPressure($tenantId) !== 'degrade') {
+                return $candidates;
+            }
+
+            app(TenantQuotaAlertService::class)->evaluate($tenantId);
+
+            $downgradeModelId = app(TenantPlanCatalog::class)->downgradeModelId($tenantId);
+            if ($downgradeModelId === null) {
+                return $candidates;
+            }
+
+            $downgradeModel = AiModel::query()->whereKey($downgradeModelId)->first();
+            if (! $downgradeModel instanceof AiModel
+                || $this->getAiModelUnavailableReason($downgradeModel) !== null) {
+                app(TenantQuotaAlertService::class)->reportDowngradeUnavailable($tenantId, $downgradeModelId);
+
+                return $candidates;
+            }
+
+            try {
+                $downgradeModel = $this->aiExecutionAccessGuard->assertModelCurrent($executionContext, $downgradeModel);
+            } catch (AiModelAccessException $exception) {
+                app(TenantQuotaAlertService::class)->reportDowngradeUnavailable($tenantId, $downgradeModelId);
+
+                return $candidates;
+            }
+
+            $remaining = array_values(array_filter(
+                $candidates,
+                static fn (AiModel $model): bool => (int) $model->getKey() !== (int) $downgradeModel->getKey(),
+            ));
+
+            return array_values(array_merge([$downgradeModel], $remaining));
+        } catch (Throwable $exception) {
+            report($exception);
+
+            return $candidates;
+        }
     }
 
     /**
