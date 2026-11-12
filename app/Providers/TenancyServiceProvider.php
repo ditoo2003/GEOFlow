@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Tenancy\TenantContext;
+use App\Tenancy\TenantContextMissingException;
 use App\Tenancy\TenantModelRegistry;
 use App\Tenancy\TenantResolver;
 use App\Tenancy\TenantScope;
@@ -12,7 +13,9 @@ use Illuminate\Queue\Events\JobExceptionOccurred;
 use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
+use Illuminate\Queue\Queue as BaseQueue;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
 
 /**
@@ -112,41 +115,107 @@ class TenancyServiceProvider extends ServiceProvider
     }
 
     /**
-     * 队列任务按 payload 中的 `tenant_id` 快照恢复上下文；
-     * 多租户环境下缺少快照时保持未解析状态，任务内查询会立刻失败（fail-closed）。
+     * 队列任务按 payload 中的租户快照恢复上下文。
+     *
+     * - 入队时把当前上下文写进 payload：租户上下文写 `tenant_id`，系统上下文写 `tenant_system`。
+     *   所有分发入口（控制器、服务、命令、事件监听、job 内再分发、batch/chain）都走队列 `push`，
+     *   因此统一由 `createPayloadUsing` 覆盖；延迟与重试复用的是同一条 payload，无需额外处理。
+     * - 执行前恢复快照，执行后恢复到"入队前"的状态（同步任务不会污染调用方上下文）。
+     * - 缺少快照时：单租户部署兜底到唯一租户；多租户部署抛出中文异常并记录结构化日志，绝不静默落默认租户。
      */
     private function registerQueueContext(): void
     {
-        Event::listen(JobProcessing::class, static function (JobProcessing $event): void {
+        BaseQueue::createPayloadUsing(static function (): array {
             $context = app(TenantContext::class);
-            $payload = $event->job->payload();
-            $tenantId = $payload['tenant_id'] ?? null;
 
-            if (is_numeric($tenantId) && (int) $tenantId > 0) {
-                $context->useTenant((int) $tenantId);
-
-                return;
+            if (! $context->isResolved()) {
+                return [];
             }
 
-            $fallback = app(TenantResolver::class)->singleTenantFallbackId();
-            if ($fallback !== null) {
-                $context->useTenant($fallback);
-
-                return;
-            }
-
-            $context->clear();
+            return $context->isSystem()
+                ? ['tenant_system' => true]
+                : ['tenant_id' => $context->tenantId()];
         });
 
-        $restoreSystem = static function (): void {
+        /** @var list<array{job: object, resolved: bool, system: bool, tenant_id: ?int}> $stack */
+        $stack = [];
+
+        Event::listen(JobProcessing::class, function (JobProcessing $event) use (&$stack): void {
             $context = app(TenantContext::class);
-            if ($context->isResolved() && ! $context->isSystem()) {
+
+            $stack[] = [
+                'job' => $event->job,
+                'resolved' => $context->isResolved(),
+                'system' => $context->isSystem(),
+                'tenant_id' => $context->tenantId(),
+            ];
+
+            $this->applyJobTenantContext($event, $context);
+        });
+
+        $restore = static function (object $event) use (&$stack): void {
+            if ($stack === []) {
+                return;
+            }
+
+            $top = end($stack);
+            // 同一个任务可能连续触发 JobExceptionOccurred 与 JobFailed，只恢复一次。
+            if (($top['job'] ?? null) !== $event->job) {
+                return;
+            }
+            array_pop($stack);
+
+            $context = app(TenantContext::class);
+            if (! $top['resolved']) {
+                $context->clear();
+            } elseif ($top['system']) {
                 $context->useSystem();
+            } else {
+                $context->useTenant((int) $top['tenant_id']);
             }
         };
 
-        Event::listen(JobProcessed::class, $restoreSystem);
-        Event::listen(JobFailed::class, $restoreSystem);
-        Event::listen(JobExceptionOccurred::class, $restoreSystem);
+        Event::listen(JobProcessed::class, $restore);
+        Event::listen(JobFailed::class, $restore);
+        Event::listen(JobExceptionOccurred::class, $restore);
+    }
+
+    private function applyJobTenantContext(JobProcessing $event, TenantContext $context): void
+    {
+        $payload = $event->job->payload();
+        $tenantId = $payload['tenant_id'] ?? null;
+
+        if (is_numeric($tenantId) && (int) $tenantId > 0) {
+            $context->useTenant((int) $tenantId);
+
+            return;
+        }
+
+        if ((bool) ($payload['tenant_system'] ?? false)) {
+            $context->useSystem();
+
+            return;
+        }
+
+        $resolver = app(TenantResolver::class);
+        $fallback = $resolver->singleTenantFallbackId();
+        if ($fallback !== null) {
+            $context->useTenant($fallback);
+
+            return;
+        }
+
+        $jobName = (string) ($payload['displayName'] ?? $event->job->getName());
+        $tenantCount = $resolver->tenantCount();
+
+        Log::error('queue.tenant_context_missing', [
+            'job' => $jobName,
+            'job_id' => $event->job->getJobId(),
+            'connection' => $event->connectionName,
+            'queue' => $event->job->getQueue(),
+            'tenant_count' => $tenantCount,
+        ]);
+
+        throw TenantContextMissingException::forQueuedJob($jobName, $tenantCount);
     }
 }

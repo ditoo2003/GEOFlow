@@ -63,13 +63,18 @@ final class TenantResolver
      */
     public function singleTenantFallbackId(): ?int
     {
-        if (Tenant::query()->count() !== 1) {
+        if ($this->tenantCount() !== 1) {
             return null;
         }
 
         $id = Tenant::query()->value('id');
 
         return is_numeric($id) ? (int) $id : null;
+    }
+
+    public function tenantCount(): int
+    {
+        return Tenant::query()->count();
     }
 
     public function defaultTenantId(): int
