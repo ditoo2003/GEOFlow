@@ -12,41 +12,57 @@ use Throwable;
  *
  * 告警写入按 `(tenant_id, period, meter, level)` 幂等，同一周期同一档位只留一条；
  * 任何失败都只记录日志，绝不向调用方抛异常（降级/告警路径不能中断运行中的 job）。
+ * 阈值判断使用对账后的可用额度（套餐额度 - 上月超用结转）。
  */
 final class TenantQuotaAlertService
 {
     public function __construct(
-        private readonly TenantPlanCatalog $plans,
         private readonly TenantQuotaService $quota,
+        private readonly TenantQuotaReconciliationService $reconciliation,
     ) {}
 
     public function evaluate(int $tenantId): void
     {
         try {
-            $plan = $this->plans->planFor($tenantId);
             $period = $this->quota->currentPeriod();
+            $report = $this->reconciliation->ensurePeriod($tenantId, $period);
 
-            $articleQuota = (int) $plan['article_quota'];
+            $articleQuota = (int) $report['article_quota'];
             if ($articleQuota > 0) {
-                $published = $this->quota->monthlyPublishedCount($tenantId);
-                if ($published >= $articleQuota) {
+                $published = (int) $report['article_used'];
+                $effective = (int) $report['article_effective_quota'];
+                $carryover = (int) $report['article_carryover_in'];
+
+                if ($published >= $effective) {
                     $this->raise(
                         $tenantId,
                         $period,
                         TenantQuotaAlert::METER_PUBLISHED_ARTICLES,
                         TenantQuotaAlert::LEVEL_BLOCK,
-                        sprintf('本月已发布文章数已达套餐上限（%d 篇），新的生成任务已暂停，下月自动恢复。', $articleQuota),
-                        ['published' => $published, 'article_quota' => $articleQuota],
+                        $carryover > 0
+                            ? sprintf(
+                                '本月已发布文章数已达套餐上限（%d 篇，另抵扣上月超用结转 %d 篇），新的生成任务已暂停，下月自动恢复。',
+                                $articleQuota,
+                                $carryover,
+                            )
+                            : sprintf('本月已发布文章数已达套餐上限（%d 篇），新的生成任务已暂停，下月自动恢复。', $articleQuota),
+                        [
+                            'published' => $published,
+                            'article_quota' => $articleQuota,
+                            'article_effective_quota' => $effective,
+                            'article_carryover_in' => $carryover,
+                        ],
                     );
                 }
             }
 
-            $budget = (int) $plan['token_budget'];
-            if ($budget <= 0) {
+            if ((int) $report['token_budget'] <= 0) {
                 return;
             }
 
-            $usage = $this->quota->monthlyTokenUsage($tenantId);
+            $budget = (int) $report['token_effective_budget'];
+            $usage = (int) $report['token_used'];
+            $carryover = (int) $report['token_carryover_in'];
             $blockRatio = (float) config('billing.block_ratio', 1.0);
             $degradeRatio = (float) config('billing.degrade_ratio', 0.8);
 
@@ -56,8 +72,10 @@ final class TenantQuotaAlertService
                     $period,
                     TenantQuotaAlert::METER_TOKENS,
                     TenantQuotaAlert::LEVEL_BLOCK,
-                    '本月 AI 成本额度已用完，新的生成任务已暂停，下月自动恢复。',
-                    ['usage' => $usage, 'token_budget' => $budget],
+                    $carryover > 0
+                        ? sprintf('本月 AI 成本额度已用完（含上月超用结转 %d token），新的生成任务已暂停，下月自动恢复。', $carryover)
+                        : '本月 AI 成本额度已用完，新的生成任务已暂停，下月自动恢复。',
+                    ['usage' => $usage, 'token_budget' => $budget, 'token_carryover_in' => $carryover],
                 );
 
                 return;
@@ -70,7 +88,7 @@ final class TenantQuotaAlertService
                     TenantQuotaAlert::METER_TOKENS,
                     TenantQuotaAlert::LEVEL_DEGRADE,
                     '本月 AI 成本额度已使用 80%，已自动降级到套餐配置的低成本模型。',
-                    ['usage' => $usage, 'token_budget' => $budget],
+                    ['usage' => $usage, 'token_budget' => $budget, 'token_carryover_in' => $carryover],
                 );
             }
         } catch (Throwable $exception) {

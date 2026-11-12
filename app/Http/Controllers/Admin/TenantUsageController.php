@@ -9,6 +9,7 @@ use App\Models\Tenant;
 use App\Models\TenantQuotaAlert;
 use App\Models\TenantUsageEvent;
 use App\Services\Billing\TenantPlanCatalog;
+use App\Services\Billing\TenantQuotaReconciliationService;
 use App\Services\Billing\TenantQuotaService;
 use App\Support\AdminActivityLogger;
 use App\Tenancy\TenantContext;
@@ -117,6 +118,8 @@ class TenantUsageController extends Controller
             'plans' => $this->plans->plans(),
             'summary' => $this->quota->summary($tenantId),
             'pressure' => $this->quota->pressure($tenantId),
+            'reconciliation' => app(TenantQuotaReconciliationService::class)->ensurePeriod($tenantId, $period),
+            'periods' => app(TenantQuotaReconciliationService::class)->recentPeriods($tenantId, 6),
             'estimatedCost' => $this->estimatedCost($tenantId),
             'period' => $period,
             'alerts' => TenantQuotaAlert::query()

@@ -9,6 +9,8 @@
     $models = $models ?? collect();
     $plans = $plans ?? [];
     $singleTenant = (bool) ($singleTenant ?? false);
+    $reconciliation = is_array($reconciliation ?? null) ? $reconciliation : null;
+    $periods = $periods ?? [];
 
     $levelLabels = [
         \App\Models\TenantQuotaAlert::LEVEL_BLOCK => __('admin.usage.alerts.level.block'),
@@ -25,14 +27,22 @@
         'degrade' => 'border-amber-200 bg-amber-50 text-amber-900',
         'block' => 'border-red-200 bg-red-50 text-red-900',
     ];
-    $percent = function (int $used, int $limit): ?int {
-        return $limit > 0 ? (int) min(100, round($used / $limit * 100)) : null;
+    $percent = function (int $used, int $limit, bool $configured): ?int {
+        if (! $configured) {
+            return null;
+        }
+
+        return $limit > 0 ? (int) min(100, round($used / $limit * 100)) : 100;
     };
+    $articleQuota = (int) ($summary['article_quota'] ?? 0);
+    $tokenBudget = (int) ($summary['token_budget'] ?? 0);
     $cards = [
         [
             'key' => 'articles',
             'used' => (int) ($summary['article_count'] ?? 0),
-            'limit' => (int) ($summary['article_quota'] ?? 0),
+            'limit' => (int) ($summary['article_effective_quota'] ?? 0),
+            'configured' => $articleQuota > 0,
+            'carryover' => (int) ($summary['article_carryover_in'] ?? 0),
             'tone' => 'bg-blue-600',
             'icon' => 'file-check-2',
             'label' => __('admin.usage.metrics.articles'),
@@ -41,6 +51,8 @@
             'key' => 'sites',
             'used' => (int) ($summary['site_count'] ?? 0),
             'limit' => (int) ($summary['site_limit'] ?? 0),
+            'configured' => (int) ($summary['site_limit'] ?? 0) > 0,
+            'carryover' => 0,
             'tone' => 'bg-cyan-600',
             'icon' => 'globe',
             'label' => __('admin.usage.metrics.sites'),
@@ -48,7 +60,9 @@
         [
             'key' => 'tokens',
             'used' => (int) ($summary['token_usage'] ?? 0),
-            'limit' => (int) ($summary['token_budget'] ?? 0),
+            'limit' => (int) ($summary['token_effective_budget'] ?? 0),
+            'configured' => $tokenBudget > 0,
+            'carryover' => (int) ($summary['token_carryover_in'] ?? 0),
             'tone' => 'bg-violet-600',
             'icon' => 'coins',
             'label' => __('admin.usage.metrics.tokens'),
@@ -158,7 +172,7 @@
         @else
             <section class="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3" aria-label="{{ __('admin.usage.metrics.label') }}">
                 @foreach ($cards as $card)
-                    @php($cardPercent = $percent($card['used'], $card['limit']))
+                    @php($cardPercent = $percent($card['used'], $card['limit'], $card['configured']))
                     <article class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm" data-usage-metric="{{ $card['key'] }}">
                         <div class="flex items-start justify-between gap-3">
                             <div class="flex items-center gap-3">
@@ -170,8 +184,13 @@
                         </div>
                         <p class="mt-4 font-mono text-3xl font-semibold tabular-nums text-gray-950">{{ number_format($card['used']) }}</p>
                         <p class="mt-1 text-xs text-gray-500">
-                            {{ $card['limit'] > 0 ? __('admin.usage.labels.'.$card['key'], ['limit' => number_format($card['limit'])]) : __('admin.usage.labels.unlimited') }}
+                            {{ $card['configured'] ? __('admin.usage.labels.'.$card['key'], ['limit' => number_format($card['limit'])]) : __('admin.usage.labels.unlimited') }}
                         </p>
+                        @if ($card['carryover'] > 0)
+                            <p class="mt-1 text-xs font-medium text-amber-600">
+                                {{ __('admin.usage.labels.carryover_'.$card['key'], ['count' => number_format($card['carryover'])]) }}
+                            </p>
+                        @endif
                         @if ($cardPercent !== null)
                             <div class="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
                                 <div class="h-full rounded-full {{ $cardPercent >= 100 ? 'bg-red-500' : ($cardPercent >= 80 ? 'bg-amber-500' : 'bg-emerald-500') }}" style="width: {{ $cardPercent }}%"></div>
@@ -180,6 +199,56 @@
                     </article>
                 @endforeach
             </section>
+
+            @if ($reconciliation !== null)
+                <section class="mb-6 overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm" aria-labelledby="usage-reconciliation-title">
+                    <div class="border-b border-gray-200 px-5 py-4 sm:px-6">
+                        <h2 id="usage-reconciliation-title" class="text-lg font-semibold text-gray-950">{{ __('admin.usage.reconciliation.title') }}</h2>
+                        <p class="mt-1 text-sm text-gray-500">{{ __('admin.usage.reconciliation.subtitle') }}</p>
+                    </div>
+
+                    @if (count($periods) === 0)
+                        <p class="px-5 py-6 text-sm text-gray-500 sm:px-6">{{ __('admin.usage.reconciliation.empty') }}</p>
+                    @else
+                        <div class="overflow-x-auto">
+                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                                <thead class="bg-gray-50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500">
+                                    <tr>
+                                        <th class="px-5 py-3 sm:px-6">{{ __('admin.usage.reconciliation.period') }}</th>
+                                        <th class="px-4 py-3 text-right">{{ __('admin.usage.reconciliation.quota') }}</th>
+                                        <th class="px-4 py-3 text-right">{{ __('admin.usage.reconciliation.used') }}</th>
+                                        <th class="px-4 py-3 text-right">{{ __('admin.usage.reconciliation.carryover') }}</th>
+                                        <th class="px-4 py-3 text-right">{{ __('admin.usage.reconciliation.overage') }}</th>
+                                        <th class="px-4 py-3 text-right">{{ __('admin.usage.reconciliation.effective') }}</th>
+                                        <th class="px-5 py-3 sm:px-6">{{ __('admin.usage.reconciliation.status') }}</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="divide-y divide-gray-100">
+                                    @foreach ($periods as $row)
+                                        <tr data-usage-period="{{ $row['period'] }}">
+                                            <td class="px-5 py-3 font-mono text-gray-900 sm:px-6">{{ $row['period'] }}</td>
+                                            <td class="px-4 py-3 text-right font-mono tabular-nums text-gray-900">{{ (int) $row['article_quota'] > 0 ? number_format((int) $row['article_quota']) : '∞' }}</td>
+                                            <td class="px-4 py-3 text-right font-mono tabular-nums text-gray-900">{{ number_format((int) $row['article_used']) }}</td>
+                                            <td class="px-4 py-3 text-right font-mono tabular-nums {{ (int) $row['article_carryover_in'] > 0 ? 'text-amber-700' : 'text-gray-500' }}">{{ number_format((int) $row['article_carryover_in']) }}</td>
+                                            <td class="px-4 py-3 text-right font-mono tabular-nums {{ (int) $row['article_overage'] > 0 ? 'text-amber-700' : 'text-gray-500' }}">{{ number_format((int) $row['article_overage']) }}</td>
+                                            <td class="px-4 py-3 text-right font-mono tabular-nums text-gray-900">{{ (int) $row['article_quota'] > 0 ? number_format((int) $row['article_effective_quota']) : '∞' }}</td>
+                                            <td class="px-5 py-3 sm:px-6">
+                                                @if ($row['frozen'])
+                                                    <span class="inline-flex rounded-full border border-gray-200 bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600">{{ __('admin.usage.reconciliation.frozen') }}</span>
+                                                @elseif ($row['finalized'])
+                                                    <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-medium text-emerald-700">{{ __('admin.usage.reconciliation.finalized') }}</span>
+                                                @else
+                                                    <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">{{ __('admin.usage.reconciliation.open') }}</span>
+                                                @endif
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </section>
+            @endif
 
             <section class="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
                 <article class="rounded-lg border border-gray-200 bg-white p-5 shadow-sm">

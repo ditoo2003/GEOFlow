@@ -7,6 +7,7 @@ use App\Models\TenantUsageEvent;
 use App\Tenancy\TenantContext;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * 租户用量计量（对外计费事实）。
@@ -17,9 +18,15 @@ use Illuminate\Support\Facades\DB;
  *
  * 写入使用 `insertOrIgnore` 并显式带 `tenant_id`：RLS 的 WITH CHECK 需要正确的租户归属，
  * 不能依赖 Eloquent creating 钩子（它不覆盖系统上下文）。
+ *
+ * 暂停/归档租户不计新账（历史账保留）；跨月按 Asia/Shanghai 自然月归档入账月份。
  */
 final class TenantUsageMeter
 {
+    public function __construct(
+        private readonly TenantQuotaReconciliationService $reconciliation,
+    ) {}
+
     public function recordPublishedArticle(Article $article): bool
     {
         $articleId = (int) $article->getKey();
@@ -28,9 +35,19 @@ final class TenantUsageMeter
         }
 
         $occurredAt = $article->published_at instanceof \DateTimeInterface
-            ? Carbon::instance($article->published_at)
-            : now();
+            ? Carbon::instance($article->published_at)->setTimezone(config('app.timezone'))
+            : now(config('app.timezone'));
         $tenantId = $this->tenantIdFor($article);
+
+        if (! $this->reconciliation->tenantAllowsAccrual($tenantId)) {
+            Log::info('tenant_usage.metering_skipped', [
+                'tenant_id' => $tenantId,
+                'article_id' => $articleId,
+                'reason' => 'tenant_not_active',
+            ]);
+
+            return false;
+        }
 
         $inserted = DB::table('tenant_usage_events')->insertOrIgnore([
             'tenant_id' => $tenantId,
