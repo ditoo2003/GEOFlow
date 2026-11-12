@@ -110,6 +110,7 @@ class ArticleAiQualityScorerTest extends TestCase
                 'severity' => 'high',
                 'field' => 'content',
                 'quote' => '文章正文',
+                'hard_blocker' => true,
                 'knowledge_refs' => [],
             ]],
             'uncertainties' => [],
@@ -119,6 +120,8 @@ class ArticleAiQualityScorerTest extends TestCase
         $this->assertSame('content_integrity', $issue['code']);
         $this->assertSame('ai_generated_disclosure', $issue['unmapped_code']);
         $this->assertSame('high', $issue['reported_severity']);
+        $this->assertTrue($issue['reported_hard_blocker']);
+        $this->assertFalse($issue['hard_blocker'], '未知 code 不允许触发硬拦截');
         $this->assertSame('low', $issue['severity']);
         $this->assertSame(2, $issue['deduction']);
         $this->assertSame(8, $result['dimension_scores']['content_integrity']);

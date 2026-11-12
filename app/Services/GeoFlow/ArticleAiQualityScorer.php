@@ -80,6 +80,9 @@ class ArticleAiQualityScorer
                 $issue['reported_code'] = $code;
                 $issue['unmapped_code'] = $code;
                 $issue['reported_severity'] = (string) ($issue['severity'] ?? 'medium');
+                // 未知 code 不允许触发硬拦截：保留模型原始声明，仅用于排障展示。
+                $issue['reported_hard_blocker'] = ($issue['hard_blocker'] ?? false) === true;
+                $issue['hard_blocker'] = false;
                 $issue['severity'] = 'low';
                 $issue['code'] = ArticleQualityIssueCode::UNMAPPED_DIMENSION;
             }
