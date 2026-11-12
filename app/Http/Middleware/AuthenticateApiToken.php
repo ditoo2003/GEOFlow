@@ -4,7 +4,10 @@ namespace App\Http\Middleware;
 
 use App\Exceptions\ApiException;
 use App\Http\ApiAuthContext;
+use App\Models\Admin;
 use App\Services\Api\ApiTokenService;
+use App\Tenancy\TenantContext;
+use App\Tenancy\TenantResolver;
 use Closure;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -43,6 +46,20 @@ class AuthenticateApiToken
         }
 
         $request->attributes->set('api_auth', new ApiAuthContext($token, $auditAdminId));
+
+        $admin = Admin::query()->find($auditAdminId);
+        if ($admin instanceof Admin) {
+            if (! app(TenantResolver::class)->applyForAdmin($admin)) {
+                throw new ApiException('forbidden', '当前账号未绑定任何租户', 403);
+            }
+        } else {
+            $tenantId = app(TenantResolver::class)->singleTenantFallbackId();
+            if ($tenantId === null) {
+                throw new ApiException('forbidden', '无法确定 Token 所属租户', 403);
+            }
+
+            app(TenantContext::class)->useTenant($tenantId);
+        }
 
         return $next($request);
     }

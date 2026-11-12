@@ -2,6 +2,7 @@
 
 namespace Tests\PostgreSQL;
 
+use App\Tenancy\TenantContext;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 
@@ -25,6 +26,8 @@ abstract class PostgreSqlTestCase extends BaseTestCase
         $app['config']->set('queue.default', 'null');
         $app['config']->set('geoflow.hosted_sites.enabled', true);
         $app['config']->set('geoflow.hosted_sites.root_domains', ['sites.test']);
+
+        $app->make(TenantContext::class)->useTenant((int) config('tenancy.default_tenant_id', 1));
 
         return $app;
     }

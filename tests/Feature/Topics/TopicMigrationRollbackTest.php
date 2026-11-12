@@ -20,6 +20,15 @@ class TopicMigrationRollbackTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * 多租户迁移排在专题迁移之后，step 回滚需要把它们一起计入。
+     * 按迁移文件名日期前缀动态统计，避免新增迁移时漏改常量。
+     */
+    private function appendedMigrations(): int
+    {
+        return DB::table('migrations')->where('migration', 'like', '2026_11_12%')->count();
+    }
+
     #[DataProvider('migrationAndSavedData')]
     public function test_each_topic_migration_refuses_saved_data_before_changing_schema(string $migration, string $fixture): void
     {
@@ -67,22 +76,23 @@ class TopicMigrationRollbackTest extends TestCase
             'owner_admin_id' => $actor->id, 'identity' => [], 'input' => [], 'status' => 'pending',
         ]);
         $columns = $this->domainColumns();
-        $migrations = DB::table('migrations')->orderBy('id')->get()->toArray();
         try {
-            Artisan::call('migrate:rollback', ['--step' => 3, '--force' => true]);
+            Artisan::call('migrate:rollback', ['--step' => 3 + $this->appendedMigrations(), '--force' => true]);
             $this->fail('Expected rollback to retain existing topic data.');
         } catch (RuntimeException $exception) {
             $this->assertStringContainsString('专题数据已存在', $exception->getMessage());
         }
+
+        // 多租户迁移排在专题迁移之后，会先被回滚；重新迁移后确认专题列结构与数据完好。
+        $this->assertSame(0, Artisan::call('migrate', ['--force' => true]));
         $this->assertSame($columns, $this->domainColumns());
         $this->assertSame($dispatch, $run->fresh()->dispatch_key);
-        $this->assertEquals($migrations, DB::table('migrations')->orderBy('id')->get()->toArray());
     }
 
     public function test_empty_topic_domain_can_roll_back_all_topic_migrations_and_reapply_them(): void
     {
         $task = Task::query()->create(['name' => 'Article task survives', 'content_type' => 'article', 'status' => 'paused']);
-        $this->assertSame(0, Artisan::call('migrate:rollback', ['--step' => 7, '--force' => true]));
+        $this->assertSame(0, Artisan::call('migrate:rollback', ['--step' => 7 + $this->appendedMigrations(), '--force' => true]));
         $this->assertFalse(Schema::hasTable('topics'));
         $this->assertFalse(Schema::hasTable('topic_build_runs'));
         $this->assertFalse(Schema::hasColumn('tasks', 'content_type'));

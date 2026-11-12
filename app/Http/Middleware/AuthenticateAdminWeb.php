@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Models\Admin;
 use App\Services\SystemUpdater\RecoveryState;
+use App\Tenancy\TenantResolver;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -52,6 +53,14 @@ class AuthenticateAdminWeb
         }
 
         $guard->setUser($admin);
+
+        if (! app(TenantResolver::class)->applyForAdmin($admin)) {
+            $message = '当前账号未绑定任何租户，请联系平台管理员。';
+
+            return $request->expectsJson()
+                ? response()->json(['message' => $message, 'code' => 'tenant_unresolved'], 403)
+                : abort(403, $message);
+        }
 
         return $next($request);
     }

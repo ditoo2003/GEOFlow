@@ -4,6 +4,7 @@ namespace Tests;
 
 use App\Contracts\Outbound\HostResolver;
 use App\Models\Admin;
+use App\Tenancy\TenantContext;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
@@ -38,6 +39,9 @@ abstract class TestCase extends BaseTestCase
         $app['config']->set('database.connections.sqlite.database', ':memory:');
         $app['config']->set('database.connections.pgsql.url', null);
         $app->singleton(HostResolver::class, FakeHostResolver::class);
+
+        // 存量测试全部在默认租户下运行；多租户用例自行覆盖上下文。
+        $app->make(TenantContext::class)->useTenant((int) config('tenancy.default_tenant_id', 1));
 
         return $app;
     }

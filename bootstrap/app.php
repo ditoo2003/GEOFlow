@@ -25,6 +25,7 @@ use App\Http\Middleware\NormalizeRequestHost;
 use App\Http\Middleware\RecordSiteViewLog;
 use App\Http\Middleware\RenderAiWorkspaceJsonErrors;
 use App\Http\Middleware\ResolveCurrentSite;
+use App\Http\Middleware\ResolveTenantFromHost;
 use App\Http\Middleware\ScopeThemeRevision;
 use App\Http\Middleware\SiteWebLocale;
 use App\Http\Middleware\TrackAdminRecentPage;
@@ -77,6 +78,7 @@ return Application::configure(basePath: dirname(__DIR__))
         }, subdomains: false);
         $middleware->append([
             NormalizeRequestHost::class,
+            ResolveTenantFromHost::class,
             ResolveCurrentSite::class,
             EnforceCurrentSiteSurface::class,
             ScopeThemeRevision::class,
