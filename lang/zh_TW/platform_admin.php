@@ -1,0 +1,67 @@
+<?php
+
+return [
+    'nav' => [
+        'branding' => '品牌與註冊',
+        'invitations' => '註冊邀請',
+    ],
+    'branding' => [
+        'title' => '品牌與註冊',
+        'subtitle' => '一份部署一套品牌：名稱、Logo、主色與郵件寄件人名稱。',
+        'updated' => '品牌設定已儲存。',
+        'submit' => '儲存品牌設定',
+        'preview_title' => '效果預覽',
+        'agpl_title' => 'AGPL 合規',
+        'agpl_notice' => '「取得原始碼」入口與授權/版權聲明為強制項，品牌設定不能移除或隱藏它們。',
+        'scope_notice' => '品牌為平台級，不支援依租戶自訂。郵件使用平台統一 SMTP，僅替換寄件人名稱與模板品牌變數。',
+        'fields' => [
+            'name' => '品牌名稱',
+            'name_hint' => '用於後台、公開頁面與郵件寄件人名稱。',
+            'logo_url' => 'Logo 位址',
+            'primary_color' => '主色',
+            'support_email' => '支援信箱',
+            'source_url' => '原始碼位址',
+            'source_url_hint' => 'AGPL「取得原始碼」入口，不允許為空。',
+            'copyright' => '版權',
+            'license' => '授權條款',
+            'license_hint' => '固定為 AGPL，不可修改。',
+        ],
+        'errors' => [
+            'color' => '主色需為 #2563eb 這樣的十六進位色值。',
+            'source_required' => 'AGPL 合規要求必須填寫原始碼位址。',
+        ],
+    ],
+    'invitations' => [
+        'title' => '註冊邀請',
+        'subtitle' => '產生一次性邀請連結；邀請模式下邀請本身即為驗證。',
+        'current_mode' => '目前註冊模式',
+        'created' => '邀請已產生，請立即複製連結，連結只顯示一次。',
+        'deleted' => '邀請已刪除。',
+        'create_title' => '產生邀請',
+        'create_submit' => '產生邀請連結',
+        'generated_title' => '新的邀請連結',
+        'generated_hint' => '把連結發給受邀人；連結單次使用，到期自動失效。',
+        'delete' => '刪除',
+        'delete_confirm' => '確認刪除該邀請？',
+        'empty' => '尚無邀請記錄。',
+        'fields' => [
+            'email' => '信箱（選填）',
+            'email_hint' => '留空則由受邀人自行填寫。',
+            'tenant_name' => '工作區名稱（選填）',
+            'note' => '備註（選填）',
+        ],
+        'columns' => [
+            'email' => '信箱',
+            'tenant' => '工作區',
+            'note' => '備註',
+            'status' => '狀態',
+            'expires' => '有效期至',
+            'actions' => '操作',
+        ],
+        'status' => [
+            'active' => '可用',
+            'used' => '已使用',
+            'expired' => '已過期',
+        ],
+    ],
+];

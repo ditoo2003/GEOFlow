@@ -1,0 +1,67 @@
+<?php
+
+return [
+    'nav' => [
+        'branding' => 'Branding & Registration',
+        'invitations' => 'Registration Invitations',
+    ],
+    'branding' => [
+        'title' => 'Branding & Registration',
+        'subtitle' => 'One brand per deployment: name, logo, primary color and email sender name.',
+        'updated' => 'Branding settings saved.',
+        'submit' => 'Save branding',
+        'preview_title' => 'Preview',
+        'agpl_title' => 'AGPL compliance',
+        'agpl_notice' => 'The "Get source code" entry and the license/copyright declarations are required and cannot be removed or hidden by branding settings.',
+        'scope_notice' => 'Branding is platform-wide and is not customizable per tenant. Email templates use the platform SMTP with only the sender name and brand variables replaced.',
+        'fields' => [
+            'name' => 'Brand name',
+            'name_hint' => 'Shown in the admin console, public pages and email sender name.',
+            'logo_url' => 'Logo URL',
+            'primary_color' => 'Primary color',
+            'support_email' => 'Support email',
+            'source_url' => 'Source code URL',
+            'source_url_hint' => 'AGPL "Get source code" entry. Must never be empty.',
+            'copyright' => 'Copyright',
+            'license' => 'License',
+            'license_hint' => 'Fixed to AGPL and not configurable.',
+        ],
+        'errors' => [
+            'color' => 'Primary color must be a hex value such as #2563eb.',
+            'source_required' => 'The source code URL is required for AGPL compliance.',
+        ],
+    ],
+    'invitations' => [
+        'title' => 'Registration Invitations',
+        'subtitle' => 'Generate one-time invitation links. In invite mode, the invitation itself is the verification.',
+        'current_mode' => 'Current registration mode',
+        'created' => 'Invitation created. Copy the link now — it is only shown once.',
+        'deleted' => 'Invitation deleted.',
+        'create_title' => 'Create invitation',
+        'create_submit' => 'Generate invitation link',
+        'generated_title' => 'New invitation link',
+        'generated_hint' => 'Share it with the invitee. It is single-use and expires automatically.',
+        'delete' => 'Delete',
+        'delete_confirm' => 'Delete this invitation?',
+        'empty' => 'No invitations yet.',
+        'fields' => [
+            'email' => 'Email (optional)',
+            'email_hint' => 'Leave empty to let the invitee choose.',
+            'tenant_name' => 'Workspace name (optional)',
+            'note' => 'Note (optional)',
+        ],
+        'columns' => [
+            'email' => 'Email',
+            'tenant' => 'Workspace',
+            'note' => 'Note',
+            'status' => 'Status',
+            'expires' => 'Expires',
+            'actions' => 'Actions',
+        ],
+        'status' => [
+            'active' => 'Active',
+            'used' => 'Used',
+            'expired' => 'Expired',
+        ],
+    ],
+];

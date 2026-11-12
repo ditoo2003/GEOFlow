@@ -20,6 +20,8 @@
             <span>© 2026 Yao Jingang</span>
             <span class="text-gray-300" aria-hidden="true">·</span>
             <a href="{{ $licenseUrl }}" target="_blank" rel="noopener noreferrer" class="{{ $footerLinkClass }}">AGPL-3.0</a>
+            <span class="text-gray-300" aria-hidden="true">·</span>
+            <a href="{{ route('source') }}" class="{{ $footerLinkClass }}">{{ __('registration.footer.source') }}</a>
         </div>
         <nav class="flex flex-wrap items-center gap-x-2" aria-label="GEOFlow project resources">
             <a href="{{ $changelogUrl }}" target="_blank" rel="noopener noreferrer" class="{{ $footerLinkClass }}">{{ __('admin.footer.changelog_link') }}</a>

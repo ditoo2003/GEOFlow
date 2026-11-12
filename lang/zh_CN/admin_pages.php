@@ -124,5 +124,7 @@ return [
     'admin_user_edit' => '编辑管理员',
     'activity_logs' => '操作日志',
     'api_tokens' => 'API Token',
+    'branding_settings' => '品牌与注册',
+    'registration_invitations' => '注册邀请',
     'not_found' => '页面不存在',
 ];

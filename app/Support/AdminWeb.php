@@ -23,7 +23,7 @@ final class AdminWeb
 
     public static function siteName(): string
     {
-        return 'GEOFlow';
+        return Branding::name();
     }
 
     public static function basePath(): string

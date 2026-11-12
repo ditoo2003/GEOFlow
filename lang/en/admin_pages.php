@@ -124,5 +124,7 @@ return [
     'admin_user_edit' => 'Edit Admin',
     'activity_logs' => 'Activity Logs',
     'api_tokens' => 'API Tokens',
+    'branding_settings' => 'Branding & Registration',
+    'registration_invitations' => 'Registration Invitations',
     'not_found' => 'Page Not Found',
 ];

@@ -1,4 +1,8 @@
-@php($adminUiV3Enabled = (bool) config('geoflow.admin_ui_v3_enabled', false))
+@php
+    $adminUiV3Enabled = (bool) config('geoflow.admin_ui_v3_enabled', false);
+    $brand = \App\Support\Branding::all();
+    $registrationPublic = config('registration.mode') === 'public';
+@endphp
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}">
 <head>
@@ -50,8 +54,12 @@
 <div class="fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-md px-4">
     <div class="rounded-2xl p-8 login-form">
         <div class="text-center mb-8">
-            <div class="login-badge w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
-                <i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
+            <div class="login-badge w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style="background: {{ $brand['primary_color'] }}">
+                @if (! empty($brand['logo_url']))
+                    <img src="{{ $brand['logo_url'] }}" alt="{{ $brand['name'] }}" class="w-10 h-10 object-contain bg-white rounded">
+                @else
+                    <i data-lucide="shield-check" class="w-8 h-8 text-white"></i>
+                @endif
             </div>
             <h1 class="text-2xl font-bold text-gray-900 mb-2">{{ __('admin.login.title') }}</h1>
             <p class="text-gray-600">{{ __('admin.login.subtitle', ['site_name' => $adminSiteName]) }}</p>
@@ -118,13 +126,27 @@
                 </span>
                 <span class="text-xs text-gray-400">{{ __('admin.login.remember_30_days_hint') }}</span>
             </label>
-            <button type="submit" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-3 px-4 rounded-lg">
+            <button type="submit" class="w-full text-white font-medium py-3 px-4 rounded-lg" style="background: {{ $brand['primary_color'] }}">
                 {{ __('admin.login.submit') }}
             </button>
         </form>
+        @if ($registrationPublic)
+            <div class="mt-5 text-center text-sm">
+                <a href="{{ route('register') }}" class="font-medium hover:underline" style="color: {{ $brand['primary_color'] }}">
+                    {{ __('registration.register.title') }}
+                </a>
+            </div>
+        @endif
     </div>
-    <div class="text-center mt-6">
-        <a href="{{ url('/') }}" class="text-gray-600 hover:text-gray-900 text-sm">{{ __('admin.login.back_home') }}</a>
+    <div class="text-center mt-6 space-y-1 text-sm">
+        <div>
+            <a href="{{ url('/') }}" class="text-gray-600 hover:text-gray-900">{{ __('admin.login.back_home') }}</a>
+        </div>
+        <div class="text-xs text-gray-500">
+            <a href="{{ route('source') }}" class="hover:text-gray-700 underline-offset-4 hover:underline">{{ __('registration.footer.source') }}</a>
+            · {{ __('registration.footer.license') }}: {{ $brand['license'] }}
+            · © {{ date('Y') }} {{ $brand['copyright'] }}
+        </div>
     </div>
 </div>
 <script>

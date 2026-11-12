@@ -82,6 +82,16 @@ final class AdminUiRegistry
                 ))),
                 'recent_tone' => 'green',
             ],
+            [
+                'key' => 'branding_settings', 'group' => 'system', 'label_key' => 'platform_admin.nav.branding',
+                'icon' => 'palette', 'route' => 'admin.branding.index', 'protected' => true,
+                'patterns' => ['admin.branding.*'], 'recent_tone' => 'violet',
+            ],
+            [
+                'key' => 'registration_invitations', 'group' => 'system', 'label_key' => 'platform_admin.nav.invitations',
+                'icon' => 'user-plus', 'route' => 'admin.registration-invitations.index', 'protected' => true,
+                'patterns' => ['admin.registration-invitations.*'], 'recent_tone' => 'green',
+            ],
         ];
     }
 
@@ -249,6 +259,8 @@ final class AdminUiRegistry
             'admin.ai-special-prompts' => ['key' => 'ai_special_prompts', 'icon' => 'list', 'body_heading' => 'hidden'],
 
             'admin.account.show' => ['key' => 'account', 'icon' => 'user-round-cog', 'body_heading' => 'hidden'],
+            'admin.branding.index' => ['key' => 'branding_settings', 'icon' => 'palette', 'body_heading' => 'hidden'],
+            'admin.registration-invitations.index' => ['key' => 'registration_invitations', 'icon' => 'user-plus', 'body_heading' => 'hidden'],
             'admin.account.browser-clients.index' => ['key' => 'browser_clients', 'icon' => 'monitor-smartphone', 'body_heading' => 'hidden'],
             'admin.system-updates.index' => ['key' => 'system_updates', 'icon' => 'refresh-cw', 'body_heading' => 'hidden'],
             'admin.system-updates.updater.console' => ['key' => 'updater_operations', 'icon' => 'list-checks', 'body_heading' => 'hidden'],

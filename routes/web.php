@@ -31,6 +31,7 @@ use App\Http\Controllers\Admin\ArticlePermalinkController;
 use App\Http\Controllers\Admin\AuthorController;
 use App\Http\Controllers\Admin\BrowserClientController;
 use App\Http\Controllers\Admin\BrowserConnectionApprovalController;
+use App\Http\Controllers\Admin\BrandingSettingsController;
 use App\Http\Controllers\Admin\CategoryController;
 use App\Http\Controllers\Admin\ContentAnalyticsController;
 use App\Http\Controllers\Admin\CoordinatedUpdaterController;
@@ -57,6 +58,7 @@ use App\Http\Controllers\Admin\LinkPoolThemeAdaptationController;
 use App\Http\Controllers\Admin\ManualPublicationController;
 use App\Http\Controllers\Admin\ManualPublicationSettingsController;
 use App\Http\Controllers\Admin\MaterialsController;
+use App\Http\Controllers\Admin\RegistrationInvitationController;
 use App\Http\Controllers\Admin\SecuritySettingsController;
 use App\Http\Controllers\Admin\SiteSettingsController;
 use App\Http\Controllers\Admin\SiteThemePackageController;
@@ -81,6 +83,8 @@ use App\Http\Controllers\Site\LinkPoolEventController;
 use App\Http\Controllers\Site\SiteDiscoveryController;
 use App\Http\Controllers\Site\ThemeRevisionAssetController;
 use App\Http\Controllers\Site\TopicController;
+use App\Http\Controllers\RegistrationController;
+use App\Http\Controllers\SourceCodeController;
 use App\Http\Middleware\RecordLinkPoolResponse;
 use App\Support\AdminUiRegistry;
 use App\Support\Site\ArticlePermalinkPattern;
@@ -99,6 +103,16 @@ Route::get('/app', function () {
         ? redirect()->route('admin.dashboard')
         : redirect()->route('admin.login');
 })->name('pwa.launch');
+
+// 自助注册（邀请制 / 公开注册共用同一表单与租户创建链路）。
+// AGPL「获取源代码」入口与注册/登录同语言，始终可访问，没有关闭开关。
+Route::middleware('admin.locale')->group(function (): void {
+    Route::get('/register', [RegistrationController::class, 'show'])->name('register');
+    Route::post('/register', [RegistrationController::class, 'store'])->name('register.store');
+    Route::get('/register/verify/{token}', [RegistrationController::class, 'verify'])->name('register.verify');
+    Route::post('/register/resend', [RegistrationController::class, 'resend'])->name('register.resend');
+    Route::get('/source', SourceCodeController::class)->name('source');
+});
 
 Route::middleware(['site.locale', 'site.view_log'])->group(function (): void {
     Route::get('/', [HomeController::class, 'index'])->name('site.home');
@@ -250,6 +264,24 @@ Route::prefix($adminPrefix)->name('admin.')->middleware(['admin.locale'])->group
             ->whereNumber('tenantId')
             ->middleware(['admin.super', 'throttle:admin-sensitive'])
             ->name('usage.quota.update');
+
+        // 平台级品牌与邀请制注册（仅超管）。
+        Route::get('branding', [BrandingSettingsController::class, 'index'])
+            ->middleware('admin.super')
+            ->name('branding.index');
+        Route::post('branding', [BrandingSettingsController::class, 'update'])
+            ->middleware(['admin.super', 'throttle:admin-sensitive'])
+            ->name('branding.update');
+        Route::get('registration-invitations', [RegistrationInvitationController::class, 'index'])
+            ->middleware('admin.super')
+            ->name('registration-invitations.index');
+        Route::post('registration-invitations', [RegistrationInvitationController::class, 'store'])
+            ->middleware(['admin.super', 'throttle:admin-sensitive'])
+            ->name('registration-invitations.store');
+        Route::post('registration-invitations/{invitation}', [RegistrationInvitationController::class, 'destroy'])
+            ->whereNumber('invitation')
+            ->middleware('admin.super')
+            ->name('registration-invitations.destroy');
 
         Route::prefix('system-updates')->name('system-updates.')->middleware('admin.super')->group(function () {
             Route::get('/', [SystemUpdateController::class, 'index'])->name('index');

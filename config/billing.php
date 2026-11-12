@@ -38,5 +38,14 @@ return [
             'token_budget' => 200_000_000,
             'downgrade_model_id' => null,
         ],
+        // 只保留配置位，不启用；注册默认套餐仍取 `billing.default_plan`。
+        'trial' => [
+            'label' => 'Trial',
+            'enabled' => false,
+            'site_limit' => 1,
+            'article_quota' => 10,
+            'token_budget' => 1_000_000,
+            'downgrade_model_id' => null,
+        ],
     ],
 ];

@@ -122,5 +122,7 @@ return [
     'admin_user_edit' => '編輯管理員',
     'activity_logs' => '操作日誌',
     'api_tokens' => 'API Token',
+    'branding_settings' => '品牌與註冊',
+    'registration_invitations' => '註冊邀請',
     'not_found' => '頁面不存在',
 ];
