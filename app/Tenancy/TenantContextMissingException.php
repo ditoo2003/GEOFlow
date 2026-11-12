@@ -19,4 +19,12 @@ class TenantContextMissingException extends RuntimeException
             $tenantCount
         ));
     }
+
+    public static function forSiteWrite(?string $siteKey): self
+    {
+        return new self(sprintf(
+            '无法确定站点 [%s] 写入数据的归属租户：当前处于平台（超管）上下文且未选择租户。请先在后台右上角切换到目标租户后再执行该操作。',
+            $siteKey === null || $siteKey === '' ? 'primary' : $siteKey
+        ));
+    }
 }

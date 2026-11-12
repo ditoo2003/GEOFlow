@@ -8,6 +8,7 @@ use App\Http\Controllers\Admin\AdminAccountController;
 use App\Http\Controllers\Admin\AdminActivityLogController;
 use App\Http\Controllers\Admin\AdminAuthController;
 use App\Http\Controllers\Admin\AdminRecentActivityController;
+use App\Http\Controllers\Admin\AdminTenantContextController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminWelcomeController;
 use App\Http\Controllers\Admin\AiModelController;
@@ -151,6 +152,9 @@ Route::prefix($adminPrefix)->name('admin.')->middleware(['admin.locale'])->group
         require __DIR__.'/admin-topics.php';
         // 会话与首页
         Route::post('logout', [AdminAuthController::class, 'logout'])->name('logout');
+        Route::post('tenant-context', AdminTenantContextController::class)
+            ->middleware('admin.super')
+            ->name('tenant-context.switch');
         Route::post('welcome/dismiss', [AdminWelcomeController::class, 'dismiss'])->name('welcome.dismiss');
         Route::middleware('admin.ui-v3')->group(function (): void {
             Route::get('recent', AdminRecentActivityController::class)

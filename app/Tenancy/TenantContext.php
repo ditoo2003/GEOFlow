@@ -103,8 +103,11 @@ final class TenantContext
     }
 
     /**
-     * 站点级写入的归属租户：租户上下文直接返回自身；
-     * 系统上下文（超管/平台）按站点归属解析，解析不到时回落默认租户。
+     * 站点级写入的归属租户。
+     *
+     * 租户上下文直接返回自身；系统上下文（超管/平台）先按站点归属解析，
+     * 单租户部署兜底到唯一租户；多租户且解析不到时抛出中文异常，
+     * 不再隐式回落到默认租户（超管需先切换到目标租户）。
      */
     public function tenantIdForSite(?string $siteKey): int
     {
@@ -112,7 +115,11 @@ final class TenantContext
             return $this->tenantId;
         }
 
-        return app(TenantResolver::class)->tenantIdForSiteKey($siteKey) ?? $this->tenantIdOrDefault();
+        $resolver = app(TenantResolver::class);
+
+        return $resolver->tenantIdForSiteKey($siteKey)
+            ?? $resolver->singleTenantFallbackId()
+            ?? throw TenantContextMissingException::forSiteWrite($siteKey);
     }
 
     /**

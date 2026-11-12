@@ -31,6 +31,7 @@ use App\Http\Middleware\SiteWebLocale;
 use App\Http\Middleware\TrackAdminRecentPage;
 use App\Services\Api\ThemeReleaseService;
 use App\Support\ApiResponse;
+use App\Tenancy\TenantContextMissingException;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -171,6 +172,19 @@ return Application::configure(basePath: dirname(__DIR__))
                 'activeMenu' => '',
                 'adminSiteName' => config('app.name'),
             ], 404);
+        });
+
+        $exceptions->render(function (TenantContextMissingException $e, Request $request) {
+            if ($request->is('api/*')) {
+                $rid = (string) ($request->attributes->get('request_id') ?? Str::uuid()->toString());
+
+                return ApiResponse::error('tenant_context_missing', $e->getMessage(), $rid, 422)
+                    ->withHeaders(['X-Request-Id' => $rid]);
+            }
+
+            return response($e->getMessage(), 422)
+                ->header('Content-Type', 'text/plain; charset=utf-8')
+                ->header('Cache-Control', 'no-store, private');
         });
 
         $exceptions->render(function (ApiException $e, Request $request) {

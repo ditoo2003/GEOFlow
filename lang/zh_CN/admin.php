@@ -7397,4 +7397,10 @@ return [
         ],
         'validation' => ['chunks_not_ready' => '知识切片尚未就绪。', 'no_facts' => '至少需要一个已启用事实。', 'review_required' => '事实、值和证据需要完成审核并清除冲突。', 'primary_evidence_required' => '关键数值事实需要主要证据。'],
     ],
+
+    'tenant_context' => [
+        'label' => '租户上下文',
+        'platform' => '全部租户（平台）',
+        'hint' => '站点级写入需要选择具体租户；不选择时仅浏览平台数据。',
+    ],
 ];

@@ -7,6 +7,7 @@ use App\Models\HostedSiteProfile;
 use App\Models\Tenant;
 use App\Models\TenantMembership;
 use App\Services\Site\HostedSiteResolver;
+use App\Support\AdminTenantContext;
 
 /**
  * 租户解析规则：后台会话 / API Token / 前台 hostname / 队列任务。
@@ -101,12 +102,26 @@ final class TenantResolver
 
     /**
      * 为后台请求确定并应用上下文。无法确定租户且不是超管时返回 false。
+     *
+     * 超管默认使用系统上下文（可浏览全部租户）；在后台显式选择租户后，
+     * 后续请求按所选租户执行，站点级写入才会落到该租户。
      */
     public function applyForAdmin(Admin $admin): bool
     {
         $context = app(TenantContext::class);
 
         if ($admin->isSuperAdmin()) {
+            $selected = AdminTenantContext::selectedTenantId();
+            if ($selected !== null) {
+                if (Tenant::query()->whereKey($selected)->exists()) {
+                    $context->useTenant($selected);
+
+                    return true;
+                }
+
+                AdminTenantContext::forget();
+            }
+
             $context->useSystem();
 
             return true;

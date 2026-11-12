@@ -94,6 +94,9 @@
                 <strong>{{ $admin->name }}</strong><span>{{ $isSuperAdmin ? __('admin.header.super_admin') : __('admin.header.admin') }}</span>
                 <a href="{{ \App\Support\AdminWeb::routePath('admin.account.show') }}">{{ __('admin.account.page_title') }}</a>
                 <a href="{{ \App\Support\AdminWeb::routePath('admin.site-settings.index') }}">{{ __('admin.nav.site_settings') }}</a>
+                @if ($isSuperAdmin)
+                    @include('admin.partials.tenant-context-switcher')
+                @endif
                 <form method="POST" action="{{ \App\Support\AdminWeb::routePath('admin.logout') }}" data-no-unsaved>@csrf<button type="submit" class="gf-popover__danger">{{ __('admin.button.logout') }}</button></form>
             </div>
         </div>

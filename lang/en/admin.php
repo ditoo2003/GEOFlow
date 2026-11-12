@@ -7336,4 +7336,10 @@ return [
         ],
         'validation' => ['chunks_not_ready' => 'Knowledge chunks are not ready.', 'no_facts' => 'At least one enabled fact is required.', 'review_required' => 'Facts, values, and evidence must be reviewed and conflict-free.', 'primary_evidence_required' => 'Critical numeric facts require primary evidence.'],
     ],
+
+    'tenant_context' => [
+        'label' => 'Tenant context',
+        'platform' => 'All tenants (platform)',
+        'hint' => 'Site-level writes require a specific tenant. Without a selection only platform data is visible.',
+    ],
 ];

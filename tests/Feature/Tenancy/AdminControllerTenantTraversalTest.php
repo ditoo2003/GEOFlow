@@ -52,7 +52,9 @@ class AdminControllerTenantTraversalTest extends TestCase
     /**
      * 这些控制器无法通过"带租户管理员会话的后台 GET 页面"触达：
      * - 前 4 个只有写接口（上传/保存/问候），由写路径测试与模型作用域测试覆盖；
-     * - AdminAuthController 只有登录/退出/语言切换，属于认证面，不读取租户业务数据。
+     * - AdminAuthController 只有登录/退出/语言切换，属于认证面，不读取租户业务数据；
+     * - AdminTenantContextController 只有超管切换租户上下文的 POST 接口，
+     *   本身不读写租户业务数据，由 AdminTenantContextTest 覆盖。
      */
     private const EXEMPT_CONTROLLERS = [
         'App\Http\Controllers\Admin\AdminWelcomeController',
@@ -60,6 +62,7 @@ class AdminControllerTenantTraversalTest extends TestCase
         'App\Http\Controllers\Admin\ArticleEditorAssetController',
         'App\Http\Controllers\Admin\KnowledgeBaseMediaController',
         'App\Http\Controllers\Admin\AdminAuthController',
+        'App\Http\Controllers\Admin\AdminTenantContextController',
     ];
 
     private TenantContext $context;
