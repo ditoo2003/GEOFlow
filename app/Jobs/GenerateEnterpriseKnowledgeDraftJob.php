@@ -23,7 +23,7 @@ final class GenerateEnterpriseKnowledgeDraftJob implements ShouldQueue
 
     public int $tries = 1;
 
-    public int $timeout = 600;
+    public int $timeout = 480;
 
     /**
      * The serialized claim lease lets Laravel's reconstructed failed callback
@@ -40,6 +40,8 @@ final class GenerateEnterpriseKnowledgeDraftJob implements ShouldQueue
         $this->claimLeaseToken = is_string($claimLeaseToken) && Str::isUuid($claimLeaseToken)
             ? $claimLeaseToken
             : (string) Str::uuid();
+        // 与 EnterpriseKnowledgeDraftService 的执行预算同源，避免硬编码 600 与内层预算漂移。
+        $this->timeout = EnterpriseKnowledgeDraftService::executionBudgetSeconds();
     }
 
     /** @return list<string> */

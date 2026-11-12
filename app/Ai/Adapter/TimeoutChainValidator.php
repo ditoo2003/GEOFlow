@@ -45,6 +45,25 @@ final class TimeoutChainValidator
     }
 
     /**
+     * 企业知识草稿链的四段预算（秒）。
+     *
+     * 单次调用受"执行预算剩余"约束（job-60），因此 business 取单次上限与该余量的较小值。
+     *
+     * @return array{business:int,job:int,worker:int,retry_after:int}
+     */
+    public function enterpriseKnowledgeChain(): array
+    {
+        $job = (int) config('geoflow.content_job_timeout_seconds', 480);
+
+        return [
+            'business' => min((int) config('geoflow.content_provider_timeout_seconds', 420), max(1, $job - 60)),
+            'job' => $job,
+            'worker' => (int) config('geoflow.content_worker_timeout_seconds', 930),
+            'retry_after' => $this->retryAfter(),
+        ];
+    }
+
+    /**
      * 内容优化链的四段预算（秒）。
      *
      * business 与优化协调器的候选截止时间保持一致：不超过 job-30，

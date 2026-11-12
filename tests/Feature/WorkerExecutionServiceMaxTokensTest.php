@@ -60,7 +60,7 @@ class WorkerExecutionServiceMaxTokensTest extends TestCase
         $leaseSeconds = $providerTimeout + WorkerAiModelInvocationGateway::PERSISTENCE_MARGIN_SECONDS;
 
         $this->assertSame(MarkdownContentWriterAgent::PROVIDER_TIMEOUT_SECONDS, $timeoutAttribute->value);
-        $this->assertSame(240, $providerTimeout);
+        $this->assertSame((int) config('geoflow.content_provider_timeout_seconds'), $providerTimeout);
         $this->assertGreaterThanOrEqual($providerTimeout + 60, $leaseSeconds);
 
         $locks = app(AiModelInvocationLock::class);

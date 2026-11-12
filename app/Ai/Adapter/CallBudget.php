@@ -2,6 +2,8 @@
 
 namespace App\Ai\Adapter;
 
+use Illuminate\Support\Facades\Log;
+
 /**
  * 单次模型调用的预算（秒）。
  *
@@ -26,6 +28,23 @@ final readonly class CallBudget
     ): self {
         $profile = $scene->budget();
         $endpointProfile = $endpoint->timeoutProfile;
+        $sceneTotal = (int) ($profile['total'] ?? 0);
+
+        // 请求值高于场景上限时取 min 是预期行为，但必须留痕，避免"配置了却看不到效果"。
+        if ($requestedTotal > 0 && $sceneTotal > 0 && $requestedTotal > $sceneTotal) {
+            try {
+                Log::warning('ai_call_budget_clamped', [
+                    'scene' => $scene->value,
+                    'provider' => $endpoint->providerKey,
+                    'model' => $endpoint->modelId,
+                    'requested_total' => $requestedTotal,
+                    'scene_total' => $sceneTotal,
+                    'business_deadline' => $remainingBusinessSeconds,
+                ]);
+            } catch (\Throwable) {
+                // 观测失败不得影响主链路。
+            }
+        }
 
         $total = self::minPositive([
             $profile['total'],

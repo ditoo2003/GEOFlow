@@ -224,7 +224,12 @@ return [
     'title_ai_lease_seconds' => max(420, min(600, (int) env('GEOFLOW_TITLE_AI_LEASE_SECONDS', 420))),
     'title_ai_recovery_stale_seconds' => max(60, min(3600, (int) env('GEOFLOW_TITLE_AI_RECOVERY_STALE_SECONDS', 300))),
     // 文章 AI 质检的全文预算、抽样降级预算、模型输出和证据预算。
-    'ai_quality_request_timeout_seconds' => max(30, min(300, (int) env('GEOFLOW_AI_QUALITY_REQUEST_TIMEOUT_SECONDS', 160))),
+    // 单次请求上限会再与 deadline 取 min（见 CallBudget），因此这里同时按 deadline 收敛；
+    // 要让 300 真正生效需同时提高 deadline，并保证 business(=deadline+抽样降级+持久化预留) < job < worker < retry_after。
+    'ai_quality_request_timeout_seconds' => min(
+        max(30, min(300, (int) env('GEOFLOW_AI_QUALITY_REQUEST_TIMEOUT_SECONDS', 160))),
+        max(60, min(600, (int) env('GEOFLOW_AI_QUALITY_DEADLINE_SECONDS', 180))),
+    ),
     'ai_quality_deadline_seconds' => max(60, min(600, (int) env('GEOFLOW_AI_QUALITY_DEADLINE_SECONDS', 180))),
     'ai_quality_sampled_fallback_seconds' => max(15, min(300, (int) env('GEOFLOW_AI_QUALITY_SAMPLED_FALLBACK_SECONDS', 45))),
     'ai_quality_sampled_request_timeout_seconds' => max(10, min(120, (int) env('GEOFLOW_AI_QUALITY_SAMPLED_REQUEST_TIMEOUT_SECONDS', 35))),
