@@ -19,6 +19,22 @@
     $selectedStatus = $fieldValue('status', 'active');
     $selectedAccessScope = $fieldValue('access_scope', \App\Models\AiModel::ACCESS_SCOPE_USER_CONTENT);
     $maxTokensVisible = ($supportsModelMaxTokens ?? false) && $selectedModelType === 'chat';
+    $selectedProviderKey = (string) old('provider_key', data_get($model, 'provider_key', ''));
+    $selectedProtocol = (string) old('protocol', data_get($model, 'protocol', ''));
+    $selectedCapabilities = old('capabilities', data_get($model, 'capabilities', []));
+    $selectedCapabilities = is_array($selectedCapabilities) ? $selectedCapabilities : [];
+    $selectedContextLength = old('context_length', data_get($model, 'context_length', ''));
+    $selectedThinkingMode = (string) old('thinking_mode', data_get($model, 'thinking_mode', ''));
+    $selectedTimeoutProfile = old('timeout_profile', data_get($model, 'timeout_profile', []));
+    $selectedTimeoutProfile = is_array($selectedTimeoutProfile) ? $selectedTimeoutProfile : [];
+    $capabilityOptions = [
+        ['value' => 'chat', 'label' => __('admin.ai_models.capability_chat'), 'help' => __('admin.ai_models.capability_chat_help')],
+        ['value' => 'embedding', 'label' => __('admin.ai_models.capability_embedding'), 'help' => __('admin.ai_models.capability_embedding_help')],
+        ['value' => 'multimodal_embedding', 'label' => __('admin.ai_models.capability_multimodal_embedding'), 'help' => __('admin.ai_models.capability_multimodal_embedding_help')],
+        ['value' => 'thinking', 'label' => __('admin.ai_models.capability_thinking'), 'help' => __('admin.ai_models.capability_thinking_help')],
+        ['value' => 'json_object', 'label' => __('admin.ai_models.capability_json_object'), 'help' => __('admin.ai_models.capability_json_object_help')],
+        ['value' => 'json_schema', 'label' => __('admin.ai_models.capability_json_schema'), 'help' => __('admin.ai_models.capability_json_schema_help')],
+    ];
 @endphp
 
 <div class="space-y-8">
@@ -99,6 +115,120 @@
                 @error('api_key')
                     <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>
                 @enderror
+            </div>
+        </div>
+    </fieldset>
+
+    <fieldset class="border-t border-gray-200 pt-7" data-ai-model-capability-section>
+        <legend class="text-sm font-semibold text-gray-900">{{ __('admin.ai_models.capability_section') }}</legend>
+        <p class="mt-1 text-xs leading-5 text-gray-500">{{ __('admin.ai_models.capability_section_help') }}</p>
+
+        <div class="mt-4 grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div>
+                <label for="provider_key" class="block text-sm font-medium text-gray-700">{{ __('admin.ai_models.field_provider_key') }}</label>
+                <select name="provider_key" id="provider_key" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                    <option value="">{{ __('admin.ai_models.provider_auto_option') }}</option>
+                    @foreach (\App\Ai\Adapter\ProviderPreset::all() as $preset)
+                        <option
+                            value="{{ $preset->key }}"
+                            data-provider-protocol="{{ $preset->protocol->value }}"
+                            @selected($selectedProviderKey === $preset->key)
+                        >{{ $preset->label }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1.5 text-xs leading-5 text-gray-500">{{ __('admin.ai_models.provider_key_help') }}</p>
+                @error('provider_key')
+                    <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
+                <label for="protocol" class="block text-sm font-medium text-gray-700">{{ __('admin.ai_models.field_protocol') }}</label>
+                <select name="protocol" id="protocol" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                    <option value="">{{ __('admin.ai_models.protocol_auto_option') }}</option>
+                    @foreach (\App\Ai\Adapter\Protocol::cases() as $protocol)
+                        <option value="{{ $protocol->value }}" @selected($selectedProtocol === $protocol->value)>{{ $protocol->label() }}</option>
+                    @endforeach
+                </select>
+                <p class="mt-1.5 text-xs leading-5 text-gray-500">{{ __('admin.ai_models.protocol_help') }}</p>
+                <p class="mt-1.5 text-xs leading-5 text-blue-600" data-capability-protocol-hint></p>
+                @error('protocol')
+                    <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <span class="block text-sm font-medium text-gray-700">{{ __('admin.ai_models.field_capabilities') }}</span>
+            <p class="mt-1 text-xs leading-5 text-gray-500">{{ __('admin.ai_models.capabilities_help') }}</p>
+            <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach ($capabilityOptions as $option)
+                    <label class="flex items-start gap-2 rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-700 transition-colors duration-150 hover:border-blue-300 hover:bg-blue-50/40">
+                        <input
+                            type="checkbox"
+                            name="capabilities[]"
+                            value="{{ $option['value'] }}"
+                            @checked(in_array($option['value'], $selectedCapabilities, true))
+                            data-capability-option
+                            class="mt-0.5 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        >
+                        <span class="min-w-0">
+                            <span class="block font-medium text-gray-800">{{ $option['label'] }}</span>
+                            <span class="mt-0.5 block text-xs leading-5 text-gray-500">{{ $option['help'] }}</span>
+                        </span>
+                    </label>
+                @endforeach
+            </div>
+            @error('capabilities')
+                <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>
+            @enderror
+        </div>
+
+        <div class="mt-6 grid grid-cols-1 gap-5 md:grid-cols-2">
+            <div>
+                <label for="context_length" class="block text-sm font-medium text-gray-700">{{ __('admin.ai_models.field_context_length') }}</label>
+                <input type="number" name="context_length" id="context_length" min="1" value="{{ $normalizeScalar($selectedContextLength) }}" @error('context_length') aria-invalid="true" @enderror class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm tabular-nums" placeholder="{{ __('admin.ai_models.context_length_placeholder') }}">
+                <p class="mt-1.5 text-xs leading-5 text-gray-500">{{ __('admin.ai_models.context_length_help') }}</p>
+                @error('context_length')
+                    <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+
+            <div>
+                <label for="thinking_mode" class="block text-sm font-medium text-gray-700">{{ __('admin.ai_models.field_thinking_mode') }}</label>
+                <select name="thinking_mode" id="thinking_mode" class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm">
+                    <option value="">{{ __('admin.ai_models.thinking_mode_auto') }}</option>
+                    <option value="disabled" @selected($selectedThinkingMode === 'disabled')>{{ __('admin.ai_models.thinking_mode_disabled') }}</option>
+                    <option value="enabled" @selected($selectedThinkingMode === 'enabled')>{{ __('admin.ai_models.thinking_mode_enabled') }}</option>
+                </select>
+                <p class="mt-1.5 text-xs leading-5 text-gray-500">{{ __('admin.ai_models.thinking_mode_help') }}</p>
+                @error('thinking_mode')
+                    <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>
+                @enderror
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <span class="block text-sm font-medium text-gray-700">{{ __('admin.ai_models.field_timeout_profile') }}</span>
+            <p class="mt-1 text-xs leading-5 text-gray-500">{{ __('admin.ai_models.timeout_profile_help') }}</p>
+            <div class="mt-2 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                @foreach (['connect' => __('admin.ai_models.timeout_connect'), 'read' => __('admin.ai_models.timeout_read'), 'total' => __('admin.ai_models.timeout_total')] as $timeoutKey => $timeoutLabel)
+                    <div>
+                        <label for="timeout_profile_{{ $timeoutKey }}" class="block text-xs font-medium text-gray-600">{{ $timeoutLabel }}</label>
+                        <input
+                            type="number"
+                            name="timeout_profile[{{ $timeoutKey }}]"
+                            id="timeout_profile_{{ $timeoutKey }}"
+                            min="1"
+                            value="{{ $normalizeScalar($selectedTimeoutProfile[$timeoutKey] ?? '') }}"
+                            class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm tabular-nums"
+                            placeholder="{{ __('admin.ai_models.timeout_placeholder') }}"
+                        >
+                        @error('timeout_profile.'.$timeoutKey)
+                            <p class="mt-1.5 text-sm text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+                @endforeach
             </div>
         </div>
     </fieldset>

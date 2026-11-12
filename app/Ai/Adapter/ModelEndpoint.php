@@ -38,7 +38,7 @@ final readonly class ModelEndpoint
 
     public function isMultimodalEmbedding(): bool
     {
-        return $this->protocol->isMultimodalEmbedding() || $this->hasCapability(Capability::MultimodalEmbedding);
+        return $this->protocol->isMultimodalEmbedding();
     }
 
     public function isVolcengine(): bool

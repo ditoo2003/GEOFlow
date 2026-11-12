@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\Admin;
 
+use App\Ai\Adapter\EndpointDeclaration;
 use App\Models\Admin;
 use App\Models\AiModel;
 use Illuminate\Foundation\Http\FormRequest;
@@ -23,7 +24,7 @@ final class StoreAiModelRequest extends FormRequest
     /** @return array<string, list<mixed>> */
     public function rules(): array
     {
-        return [
+        return array_merge([
             'name' => ['required', 'string', 'max:100'],
             'version' => ['nullable', 'string', 'max:50'],
             'api_key' => ['required', 'string', 'max:500'],
@@ -38,7 +39,7 @@ final class StoreAiModelRequest extends FormRequest
                 AiModel::ACCESS_SCOPE_SYSTEM_ONLY,
             ])],
             'owner_admin_id' => ['prohibited'],
-        ];
+        ], EndpointDeclaration::validationRules());
     }
 
     /** @return list<callable(Validator): void> */
@@ -51,6 +52,16 @@ final class StoreAiModelRequest extends FormRequest
                     && ! $actor->isSuperAdmin()
                     && $this->input('access_scope') === AiModel::ACCESS_SCOPE_SYSTEM_ONLY) {
                     $validator->errors()->add('access_scope', __('admin.ai_models.error.system_scope_super_admin_only'));
+                }
+
+                $declaration = EndpointDeclaration::normalize($this->all());
+                $modelType = $this->input('model_type');
+                foreach (EndpointDeclaration::consistencyErrors(
+                    is_string($modelType) ? $modelType : 'chat',
+                    $declaration['protocol'],
+                    $declaration['capabilities'],
+                ) as $field => $message) {
+                    $validator->errors()->add($field, $message);
                 }
             },
         ];
@@ -67,5 +78,7 @@ final class StoreAiModelRequest extends FormRequest
         }
 
         $this->merge($normalized);
+
+        $this->merge(EndpointDeclaration::normalize($this->all()));
     }
 }

@@ -1280,7 +1280,8 @@ class AdminAiModelsPageTest extends TestCase
                 ],
             ]);
 
-        $this->assertStringContainsString('API Key invalid', (string) $response->json('message'));
+        $this->assertStringContainsString('模型鉴权失败', (string) $response->json('message'));
+        $this->assertStringContainsString('API Key invalid', (string) $response->json('meta.provider_detail'));
         $this->assertStringNotContainsString('test-api-key', (string) $response->json('message'));
 
         $this->assertSame(1, (int) $model->fresh()->used_today);
@@ -1522,7 +1523,8 @@ class AdminAiModelsPageTest extends TestCase
             ->postJson(route('admin.ai-models.test', ['modelId' => (int) $model->id]));
 
         $response->assertUnprocessable()->assertJsonPath('success', false);
-        $this->assertStringContainsString('This account only permits approved clients.', (string) $response->json('message'));
+        $this->assertStringContainsString('模型鉴权失败', (string) $response->json('message'));
+        $this->assertStringContainsString('This account only permits approved clients.', (string) $response->json('meta.provider_detail'));
     }
 
     public function test_inactive_model_can_be_tested_before_it_is_reenabled(): void

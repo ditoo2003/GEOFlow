@@ -62,7 +62,7 @@ final class ProviderOptionsBuilder
     public function thinkingModeApplied(ModelEndpoint $endpoint, CallScene $scene, array $options): string
     {
         if ($endpoint->isEmbedding() || $scene === CallScene::Embedding) {
-            return 'n/a';
+            return 'not_applicable';
         }
         if (($options['reasoning_split'] ?? false) === true) {
             return 'separate';

@@ -1,4 +1,4 @@
-import { initializeAiModelTypeFields } from './ai-model-form';
+import { initializeAiModelCapabilityFields, initializeAiModelTypeFields } from './ai-model-form';
 
 const form = document.querySelector('[data-ai-model-create-form]');
 
@@ -13,6 +13,7 @@ if (form) {
     };
     const presetButtons = Array.from(form.querySelectorAll('[data-ai-model-preset]'));
     const syncMaxTokensVisibility = initializeAiModelTypeFields(form);
+    initializeAiModelCapabilityFields(form);
 
     const clearPresetSelection = () => {
         presetButtons.forEach((button) => {

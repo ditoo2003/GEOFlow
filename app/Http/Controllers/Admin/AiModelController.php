@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Ai\Adapter\EndpointDeclaration;
+use App\Ai\Adapter\ModelCallError;
+use App\Ai\Adapter\Protocol;
 use App\Data\Admin\AdminAiActorContext;
 use App\Data\Admin\GovernanceAiModelData;
 use App\Data\Admin\SharedAiModelData;
@@ -202,6 +205,12 @@ class AiModelController extends Controller
             'model_id',
             'model_type',
             'api_url',
+            'provider_key',
+            'protocol',
+            'capabilities',
+            'context_length',
+            'timeout_profile',
+            'thinking_mode',
             'failover_priority',
             'daily_limit',
             'status',
@@ -265,6 +274,7 @@ class AiModelController extends Controller
         if ($this->supportsModelMaxTokens()) {
             $createData['max_tokens'] = $this->normalizeMaxTokensForModelType($payload['max_tokens'] ?? null, $modelType);
         }
+        $createData = array_merge($createData, EndpointDeclaration::normalize($payload));
 
         $createdModel = $this->mutationService->create(
             $actor,
@@ -315,6 +325,7 @@ class AiModelController extends Controller
         if ($this->supportsModelMaxTokens()) {
             $updateData['max_tokens'] = $this->normalizeMaxTokensForModelType($payload['max_tokens'] ?? null, $modelType);
         }
+        $updateData = array_merge($updateData, EndpointDeclaration::normalize($payload));
 
         $apiKey = trim((string) ($payload['api_key'] ?? ''));
         if ($apiKey !== '') {
@@ -541,17 +552,18 @@ class AiModelController extends Controller
                     $this->recordModelTestAttempt($reservation);
                 }
 
+                $detail = $this->safeRemoteDetail($response, $apiKey);
+                $error = ModelCallError::fromStatus((int) $response->status(), $detail);
+
                 return $this->modelTestResponse(
                     false,
-                    __('admin.ai_models.test_failed_with_status', [
-                        'status' => (string) $response->status(),
-                        'message' => $this->safeRemoteDetail($response, $apiKey),
-                    ]),
+                    $this->normalizedTestFailureMessage($error, $modelType, (string) $snapshot->protocol),
                     $startedAt,
                     $modelType,
                     $endpoint,
                     $response->status(),
-                    diagnosis: $this->modelTestDiagnosis->forHttpFailure($model, $apiKey, $response->status()),
+                    ['error_code' => $error->value, 'protocol' => (string) $snapshot->protocol, 'provider_detail' => $detail],
+                    $this->modelTestDiagnosis->forHttpFailure($model, $apiKey, $response->status()),
                 );
             }
 
@@ -561,16 +573,20 @@ class AiModelController extends Controller
                     $this->recordModelTestAttempt($reservation);
                 }
 
+                $detail = $this->safeRemoteDetail($response, $apiKey);
+                $error = $modelType === 'embedding' && $detail === ''
+                    ? ModelCallError::InvalidResponse
+                    : ModelCallError::fromStatus((int) $response->status(), $detail);
+
                 return $this->modelTestResponse(
                     false,
-                    __('admin.ai_models.test_invalid_response', [
-                        'message' => $this->safeRemoteDetail($response, $apiKey),
-                    ]),
+                    $this->normalizedTestFailureMessage($error, $modelType, (string) $snapshot->protocol),
                     $startedAt,
                     $modelType,
                     $endpoint,
                     $response->status(),
-                    diagnosis: $this->modelTestDiagnosis->forInvalidResponse($model, $apiKey),
+                    ['error_code' => $error->value, 'protocol' => (string) $snapshot->protocol, 'provider_detail' => $detail],
+                    $this->modelTestDiagnosis->forInvalidResponse($model, $apiKey),
                 );
             }
 
@@ -622,12 +638,22 @@ class AiModelController extends Controller
                 'reason_code' => property_exists($exception, 'reasonCode') ? (string) $exception->reasonCode : null,
             ]);
 
+            $normalizedModelType = $this->normalizeModelType((string) ($model->model_type ?? 'chat'));
+            $error = ModelCallError::diagnose($exception, isset($endpoint) ? (string) $endpoint : '')['error'];
+
             return $this->modelTestResponse(
                 false,
-                __('admin.ai_models.test_exception', ['message' => $this->safeExceptionDetail($exception)]),
+                $error === ModelCallError::Unknown
+                    ? __('admin.ai_models.test_exception', ['message' => $this->safeExceptionDetail($exception)])
+                    : $this->normalizedTestFailureMessage(
+                        $error,
+                        $normalizedModelType,
+                        isset($snapshot) ? (string) $snapshot->protocol : '',
+                    ),
                 $startedAt,
-                $this->normalizeModelType((string) ($model->model_type ?? 'chat')),
+                $normalizedModelType,
                 diagnosis: $this->modelTestDiagnosis->forException($exception, $model, $apiKey),
+                extraMeta: ['error_code' => $error->value],
             );
         }
     }
@@ -1176,6 +1202,35 @@ class AiModelController extends Controller
             'message' => $message,
             'meta' => $meta,
         ], $success ? 200 : 422);
+    }
+
+    /**
+     * 复用适配层错误枚举，把“原始报错”翻译成可执行的中文提示。
+     */
+    private function normalizedTestFailureMessage(ModelCallError $error, string $modelType, string $protocol): string
+    {
+        $context = [
+            'protocol' => Protocol::tryFrom($protocol)?->label() ?? $protocol,
+        ];
+        $suggestion = $this->protocolSuggestion($modelType, $protocol);
+        if ($suggestion !== null) {
+            $context['suggestion'] = $suggestion;
+        }
+
+        return $error->message($context);
+    }
+
+    private function protocolSuggestion(string $modelType, string $protocol): ?string
+    {
+        if ($modelType !== 'embedding') {
+            return null;
+        }
+
+        return match ($protocol) {
+            Protocol::OpenAiEmbedding->value => Protocol::OpenAiMultimodalEmbedding->label(),
+            Protocol::OpenAiMultimodalEmbedding->value => Protocol::OpenAiEmbedding->label(),
+            default => null,
+        };
     }
 
     private function safeRemoteDetail(Response $response, string $apiKey): string

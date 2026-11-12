@@ -32,6 +32,12 @@ class AiModel extends Model
         'model_id',
         'model_type',
         'api_url',
+        'provider_key',
+        'protocol',
+        'capabilities',
+        'context_length',
+        'timeout_profile',
+        'thinking_mode',
         'failover_priority',
         'daily_limit',
         'used_today',
@@ -58,6 +64,9 @@ class AiModel extends Model
             'usage_date' => 'date',
             'total_used' => 'integer',
             'max_tokens' => 'integer',
+            'capabilities' => 'array',
+            'context_length' => 'integer',
+            'timeout_profile' => 'array',
             'ai_workspace_structured_output_verified_at' => 'datetime',
             'ai_workspace_readiness_profile' => 'array',
             'ai_workspace_readiness_checked_at' => 'immutable_datetime',
@@ -69,7 +78,21 @@ class AiModel extends Model
     protected static function booted(): void
     {
         static::updating(function (AiModel $model): void {
-            if ($model->isDirty(['version', 'model_id', 'model_type', 'api_url', 'api_key', 'status', 'max_tokens'])) {
+            if ($model->isDirty([
+                'version',
+                'model_id',
+                'model_type',
+                'api_url',
+                'api_key',
+                'status',
+                'max_tokens',
+                'provider_key',
+                'protocol',
+                'capabilities',
+                'context_length',
+                'timeout_profile',
+                'thinking_mode',
+            ])) {
                 $model->ai_workspace_structured_output_status = null;
                 $model->ai_workspace_structured_output_verified_at = null;
                 if (Schema::hasColumn('ai_models', 'ai_workspace_readiness_status')) {

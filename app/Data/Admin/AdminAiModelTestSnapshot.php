@@ -32,6 +32,12 @@ final class AdminAiModelTestSnapshot implements JsonSerializable
         public readonly ?AiUsageReservation $reservation,
         private readonly string $encryptedApiKey,
         private readonly string $decryptedApiKey,
+        public readonly ?string $providerKey = null,
+        public readonly ?string $protocol = null,
+        public readonly ?array $capabilities = null,
+        public readonly ?int $contextLength = null,
+        public readonly ?array $timeoutProfile = null,
+        public readonly ?string $thinkingMode = null,
     ) {}
 
     public function apiKey(): string
@@ -55,6 +61,12 @@ final class AdminAiModelTestSnapshot implements JsonSerializable
             'access_scope' => $this->accessScope,
             'archived_at' => $this->archivedAt,
             'max_tokens' => $this->maxTokens,
+            'provider_key' => $this->providerKey,
+            'protocol' => $this->protocol,
+            'capabilities' => $this->capabilities,
+            'context_length' => $this->contextLength,
+            'timeout_profile' => $this->timeoutProfile,
+            'thinking_mode' => $this->thinkingMode,
         ], true);
         $model->exists = true;
 

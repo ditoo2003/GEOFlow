@@ -32,11 +32,7 @@ final class AdminAiModelTestPreparationService
             $encryptedApiKey = (string) ($lockedModel->getRawOriginal('api_key') ?? '');
             $decryptedApiKey = $this->apiKeyCrypto->decrypt($encryptedApiKey);
             $modelType = $this->normalizeModelType((string) $lockedModel->model_type);
-            $resolved = ModelEndpointResolver::fromParts(
-                apiUrl: (string) $lockedModel->api_url,
-                modelId: (string) $lockedModel->model_id,
-                modelType: $modelType,
-            );
+            $resolved = ModelEndpointResolver::resolve($lockedModel);
             $endpoint = $this->resolveEndpoint($lockedModel, $modelType);
             $reservation = $endpoint !== ''
                 && $decryptedApiKey !== ''
@@ -68,6 +64,12 @@ final class AdminAiModelTestPreparationService
                 reservation: $reservation,
                 encryptedApiKey: $encryptedApiKey,
                 decryptedApiKey: $decryptedApiKey,
+                providerKey: $resolved->providerKey,
+                protocol: $resolved->protocol->value,
+                capabilities: $resolved->capabilities,
+                contextLength: $resolved->contextLength,
+                timeoutProfile: $resolved->timeoutProfile,
+                thinkingMode: $resolved->thinkingMode,
             );
         }, 3);
     }
@@ -92,6 +94,7 @@ final class AdminAiModelTestPreparationService
             $encryptedApiKey = (string) ($lockedModel->getRawOriginal('api_key') ?? '');
             $decryptedApiKey = $this->apiKeyCrypto->decrypt($encryptedApiKey);
             $endpoint = $this->resolveEndpoint($lockedModel, 'chat');
+            $resolved = ModelEndpointResolver::resolve($lockedModel);
             $reservation = $endpoint !== ''
                 && $decryptedApiKey !== ''
                 && trim((string) $lockedModel->model_id) !== ''
@@ -122,6 +125,12 @@ final class AdminAiModelTestPreparationService
                 reservation: $reservation,
                 encryptedApiKey: $encryptedApiKey,
                 decryptedApiKey: $decryptedApiKey,
+                providerKey: $resolved->providerKey,
+                protocol: $resolved->protocol->value,
+                capabilities: $resolved->capabilities,
+                contextLength: $resolved->contextLength,
+                timeoutProfile: $resolved->timeoutProfile,
+                thinkingMode: $resolved->thinkingMode,
             );
         }, 3);
     }
@@ -328,11 +337,7 @@ final class AdminAiModelTestPreparationService
 
     private function resolveEndpoint(AiModel $model, string $modelType): string
     {
-        $endpoint = ModelEndpointResolver::fromParts(
-            apiUrl: (string) $model->api_url,
-            modelId: (string) $model->model_id,
-            modelType: $modelType,
-        );
+        $endpoint = ModelEndpointResolver::resolve($model);
         if ($endpoint->baseUrl === '') {
             return '';
         }

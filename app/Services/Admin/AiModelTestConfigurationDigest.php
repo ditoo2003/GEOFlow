@@ -20,6 +20,12 @@ final class AiModelTestConfigurationDigest
             'api_key_digest' => hash('sha256', (string) $model->getRawOriginal('api_key')),
             'max_tokens' => $model->max_tokens === null ? null : (int) $model->max_tokens,
             'daily_limit' => (int) $model->daily_limit,
+            'provider_key' => $model->provider_key,
+            'protocol' => $model->protocol,
+            'capabilities' => $model->capabilities,
+            'context_length' => $model->context_length,
+            'timeout_profile' => $model->timeout_profile,
+            'thinking_mode' => $model->thinking_mode,
         ], JSON_THROW_ON_ERROR));
     }
 }

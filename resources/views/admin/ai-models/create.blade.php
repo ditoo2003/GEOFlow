@@ -41,6 +41,7 @@
             data-show-key-label="{{ __('admin.ai_models.show_api_key') }}"
             data-hide-key-label="{{ __('admin.ai_models.hide_api_key') }}"
             data-submitting-label="{{ __('admin.ai_models.creating') }}"
+            data-protocol-auto-hint="{{ __('admin.ai_models.protocol_auto_hint') }}"
         >
             @csrf
 

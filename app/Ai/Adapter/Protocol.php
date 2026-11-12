@@ -19,6 +19,18 @@ enum Protocol: string
         return in_array($this, [self::OpenAiEmbedding, self::OpenAiMultimodalEmbedding], true);
     }
 
+    public function label(): string
+    {
+        return match ($this) {
+            self::OpenAiChat => 'OpenAI 兼容 Chat Completions',
+            self::OpenAiResponses => 'OpenAI Responses',
+            self::OpenAiEmbedding => 'OpenAI 兼容 Embeddings',
+            self::OpenAiMultimodalEmbedding => '多模态 Embeddings',
+            self::GeminiNative => 'Gemini 原生',
+            self::VolcengineResponses => '火山方舟 Responses',
+        };
+    }
+
     public function isMultimodalEmbedding(): bool
     {
         return $this === self::OpenAiMultimodalEmbedding;

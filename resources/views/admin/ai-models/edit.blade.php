@@ -18,6 +18,7 @@
             class="overflow-hidden rounded-xl bg-white shadow"
             data-ai-model-edit-form
             data-supports-max-tokens="{{ ($supportsModelMaxTokens ?? false) ? 'true' : 'false' }}"
+            data-protocol-auto-hint="{{ __('admin.ai_models.protocol_auto_hint') }}"
         >
             @csrf
             @method('PUT')

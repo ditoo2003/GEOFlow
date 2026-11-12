@@ -53,7 +53,7 @@ final class ModelEndpointResolver
         $normalizedUrl = trim($apiUrl);
         $modelType = self::normalizeModelType($modelType);
         $preset = ProviderPreset::forKey($providerKey) ?? ProviderPreset::forUrl($normalizedUrl);
-        $resolvedProtocol = $protocol ?? self::deriveProtocol($normalizedUrl, $modelId, $modelType, $preset);
+        $resolvedProtocol = $protocol ?? self::deriveProtocol($normalizedUrl, $modelId, $modelType, $preset, $capabilities);
         $resolvedCapabilities = self::deriveCapabilities($capabilities, $preset, $modelType, $resolvedProtocol);
 
         $baseUrl = $resolvedProtocol->isEmbedding()
@@ -239,9 +239,18 @@ final class ModelEndpointResolver
         string $modelId,
         string $modelType,
         ?ProviderPreset $preset,
+        ?array $capabilities = null,
     ): Protocol {
         if (self::isGeminiUrl($apiUrl)) {
             return Protocol::GeminiNative;
+        }
+
+        $declared = is_array($capabilities) ? $capabilities : [];
+        if (in_array(Capability::MultimodalEmbedding->value, $declared, true)) {
+            return Protocol::OpenAiMultimodalEmbedding;
+        }
+        if (in_array(Capability::Embedding->value, $declared, true)) {
+            return Protocol::OpenAiEmbedding;
         }
 
         if ($modelType === 'embedding') {
