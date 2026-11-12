@@ -1,5 +1,11 @@
 name: geoflow-laravel
 
+# 应用运行时使用受限 DB 角色（非超级用户、NOBYPASSRLS），否则 RLS 会被连接账号绕过。
+# 迁移/初始化（init 服务）仍使用 .env 中的高权限账号。
+x-runtime-db-env: &runtime-db-env
+  DB_USERNAME: ${DB_RUNTIME_USERNAME:-geoflow_app}
+  DB_PASSWORD: ${DB_RUNTIME_PASSWORD:-geoflow_app_password}
+
 services:
   postgres:
     image: ${PGVECTOR_IMAGE:-pgvector/pgvector:pg16}
@@ -69,9 +75,11 @@ services:
     container_name: geoflow-app
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
       TRUSTED_PROXIES: "${TRUSTED_PROXIES:-REMOTE_ADDR}"
       PHP_CLI_SERVER_WORKERS: "4"
+      AUTO_MIGRATE: "false"
     command: ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8080", "--no-reload"]
     volumes:
       - ./:/var/www/html
@@ -104,6 +112,7 @@ services:
     container_name: geoflow-queue
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
       COMPOSER_ON_START: "false"
       AUTO_MIGRATE: "false"
@@ -122,6 +131,7 @@ services:
     image: geoflow-app:latest
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
       COMPOSER_ON_START: "false"
       AUTO_MIGRATE: "false"
@@ -142,6 +152,7 @@ services:
     container_name: geoflow-ai-quality-backfill-queue
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
       COMPOSER_ON_START: "false"
       AUTO_MIGRATE: "false"
@@ -160,6 +171,7 @@ services:
     container_name: geoflow-ai-optimization-queue
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
       COMPOSER_ON_START: "false"
       AUTO_MIGRATE: "false"
@@ -178,6 +190,7 @@ services:
     container_name: geoflow-knowledge-queue
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
       COMPOSER_ON_START: "false"
       AUTO_MIGRATE: "false"
@@ -196,6 +209,7 @@ services:
     container_name: geoflow-scheduler
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
       COMPOSER_ON_START: "false"
       AUTO_MIGRATE: "false"
@@ -212,6 +226,7 @@ services:
     container_name: geoflow-reverb
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
       COMPOSER_ON_START: "false"
       AUTO_MIGRATE: "false"

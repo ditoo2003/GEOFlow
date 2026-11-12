@@ -2,6 +2,12 @@
 # 用法：docker compose --env-file .env.prod -f docker-compose.prebuilt.yml up -d
 name: geoflow-laravel-prod
 
+# 应用运行时使用受限 DB 角色（非超级用户、NOBYPASSRLS），否则 RLS 会被连接账号绕过。
+# 迁移/初始化（init 服务）仍使用 .env.prod 中的高权限账号。
+x-runtime-db-env: &runtime-db-env
+  DB_USERNAME: ${DB_RUNTIME_USERNAME:-geoflow_app}
+  DB_PASSWORD: ${DB_RUNTIME_PASSWORD:-geoflow_app_password}
+
 services:
   postgres:
     image: ${PGVECTOR_IMAGE:-pgvector/pgvector:pg18}
@@ -74,6 +80,7 @@ services:
     mem_limit: ${APP_CONTAINER_MEMORY_LIMIT:-768m}
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
     volumes:
       - ./.env.prod:/var/www/html/.env
@@ -118,6 +125,7 @@ services:
     container_name: geoflow-queue-prod
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
     command: ["php", "-d", "memory_limit=256M", "artisan", "queue:work", "redis", "--queue=system-updates,geoflow,distribution,theme-replication,default", "--sleep=1", "--tries=1", "--timeout=930", "--memory=128", "--max-jobs=100", "--max-time=3600"]
     mem_limit: ${QUEUE_CONTAINER_MEMORY_LIMIT:-384m}
@@ -136,6 +144,7 @@ services:
     image: ${GEOFLOW_APP_IMAGE:?GEOFLOW_APP_IMAGE is required for prebuilt deployment}
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
     command: ["php", "-d", "memory_limit=256M", "artisan", "geoflow:work-ai-quality", "front"]
     mem_limit: ${AI_QUALITY_QUEUE_CONTAINER_MEMORY_LIMIT:-384m}
@@ -157,6 +166,7 @@ services:
     container_name: geoflow-ai-quality-backfill-queue-prod
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
     command: ["php", "-d", "memory_limit=192M", "artisan", "geoflow:work-ai-quality", "backfill"]
     mem_limit: ${AI_QUALITY_BACKFILL_QUEUE_CONTAINER_MEMORY_LIMIT:-256m}
@@ -176,6 +186,7 @@ services:
     container_name: geoflow-ai-optimization-queue-prod
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
     command: ["php", "-d", "memory_limit=256M", "artisan", "geoflow:work-ai-optimization"]
     mem_limit: ${AI_OPTIMIZATION_QUEUE_CONTAINER_MEMORY_LIMIT:-384m}
@@ -195,6 +206,7 @@ services:
     container_name: geoflow-knowledge-queue-prod
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
     command: ["php", "-d", "memory_limit=160M", "artisan", "queue:work", "redis", "--queue=knowledge", "--sleep=1", "--tries=1", "--timeout=210", "--memory=128", "--max-jobs=20", "--max-time=1800"]
     mem_limit: ${KNOWLEDGE_QUEUE_CONTAINER_MEMORY_LIMIT:-256m}
@@ -214,6 +226,7 @@ services:
     container_name: geoflow-scheduler-prod
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
     command: ["php", "artisan", "schedule:work"]
     volumes:
@@ -229,6 +242,7 @@ services:
     container_name: geoflow-reverb-prod
     working_dir: /var/www/html
     environment:
+      <<: *runtime-db-env
       AUTO_FIX_STORAGE_PERMISSIONS: "false"
     # 阶段一的 Nginx /reverb 内部反代固定使用 18080，应用启动时会校验该约束。
     command: ["php", "artisan", "reverb:start", "--host=0.0.0.0"]

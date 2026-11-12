@@ -17,6 +17,17 @@ return [
         'name' => '默认租户',
     ],
 
+    /*
+     * 应用运行时使用的数据库角色。
+     *
+     * PostgreSQL 的超级用户与 BYPASSRLS 角色会绕过行级安全，因此应用连接必须使用
+     * 独立的受限角色（迁移/初始化仍用高权限角色）。角色由 2026_11_12_100600 迁移创建。
+     */
+    'runtime_role' => [
+        'name' => env('DB_RUNTIME_USERNAME', 'geoflow_app'),
+        'password' => env('DB_RUNTIME_PASSWORD', ''),
+    ],
+
     'platform_tables' => [
         'ai_models',
         'prompts',
