@@ -24,6 +24,7 @@ final readonly class ModelEndpoint
         public ?int $contextLength = null,
         public ?array $timeoutProfile = null,
         public ?string $thinkingMode = null,
+        public bool $protocolDeclared = false,
     ) {}
 
     public function hasCapability(Capability $capability): bool
@@ -58,6 +59,15 @@ final readonly class ModelEndpoint
 
     public function chatDriver(): string
     {
+        // 显式声明协议时以其为唯一来源，避免"测试连接走 /responses、生成走 /chat/completions"。
+        if ($this->protocolDeclared) {
+            return match ($this->protocol) {
+                Protocol::GeminiNative => 'gemini',
+                Protocol::OpenAiResponses, Protocol::VolcengineResponses => 'openai',
+                default => 'openai-compatible',
+            };
+        }
+
         return ModelEndpointResolver::chatDriver($this->baseUrl !== '' ? $this->baseUrl : $this->apiUrl, $this->modelId);
     }
 

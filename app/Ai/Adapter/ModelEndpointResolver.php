@@ -71,6 +71,7 @@ final class ModelEndpointResolver
             contextLength: $contextLength,
             timeoutProfile: $timeoutProfile,
             thinkingMode: $thinkingMode,
+            protocolDeclared: $protocol !== null,
         );
     }
 
@@ -260,8 +261,11 @@ final class ModelEndpointResolver
         }
 
         $host = strtolower((string) (parse_url($apiUrl, PHP_URL_HOST) ?? ''));
-        if ($host === 'api.openai.com' && str_ends_with(rtrim($apiUrl, '/'), '/responses')) {
-            return Protocol::OpenAiResponses;
+        if ($host === 'api.openai.com') {
+            // 显式给出 /chat/completions 时按声明走；否则与 chatDriver() 的 openai 驱动保持一致。
+            return str_ends_with(rtrim($apiUrl, '/'), '/chat/completions')
+                ? Protocol::OpenAiChat
+                : Protocol::OpenAiResponses;
         }
 
         return $preset?->protocol === Protocol::GeminiNative
@@ -279,21 +283,23 @@ final class ModelEndpointResolver
         string $modelType,
         Protocol $protocol,
     ): array {
-        if (is_array($capabilities) && $capabilities !== []) {
-            $resolved = array_values(array_unique(array_filter(
+        $declared = [];
+        if (is_array($capabilities)) {
+            $declared = array_values(array_unique(array_filter(
                 array_map(static fn (mixed $value): ?string => Capability::tryFromValue($value)?->value, $capabilities),
                 static fn (?string $value): bool => $value !== null,
             )));
-            if ($resolved !== []) {
-                return self::withProtocolCapability($resolved, $protocol);
-            }
         }
 
-        if ($preset instanceof ProviderPreset) {
-            return self::withProtocolCapability($preset->capabilityValues(), $protocol);
-        }
+        $base = $preset instanceof ProviderPreset
+            ? $preset->capabilityValues()
+            : [$modelType === 'embedding' ? Capability::Embedding->value : Capability::Chat->value];
 
-        return self::withProtocolCapability([$modelType === 'embedding' ? Capability::Embedding->value : Capability::Chat->value], $protocol);
+        // 声明只用于"补能力"，不用于"删能力"：漏勾 thinking 不会让厂商预设的 thinking 支持消失。
+        return self::withProtocolCapability(
+            array_values(array_unique(array_merge($base, $declared))),
+            $protocol,
+        );
     }
 
     /**

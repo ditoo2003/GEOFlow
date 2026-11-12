@@ -30,11 +30,8 @@ final class ProviderOptionsBuilder
             if ($separateReasoning || $scene === CallScene::ArticleQuality) {
                 $options['reasoning_split'] = true;
             }
-        } elseif ($scene->disablesThinking()
-            && $endpoint->hasCapability(Capability::Thinking)
-            && $endpoint->thinkingMode !== 'enabled'
-            && $this->supportsThinkingParameter($endpoint)) {
-            $options['thinking'] = ['type' => 'disabled'];
+        } elseif (($thinking = $this->thinkingOption($endpoint, $scene)) !== null) {
+            $options['thinking'] = $thinking;
         }
 
         if ($scene === CallScene::AdminHelp && $this->isOpenAiReasoningModel($endpoint)) {
@@ -70,13 +67,58 @@ final class ProviderOptionsBuilder
         if (($options['thinking']['type'] ?? null) === 'disabled') {
             return 'disabled';
         }
+        if ($endpoint->thinkingMode === 'enabled') {
+            return 'enabled';
+        }
 
         return $scene->disablesThinking() ? 'disabled-unavailable' : 'enabled';
     }
 
+    /**
+     * 生成链路与质检链路共用的 thinking 决策。
+     *
+     * - 显式 thinking_mode=disabled：任何场景都下发关闭（修复"声明了但生成链路不生效"）；
+     * - 显式 thinking_mode=enabled：尊重声明，不再抑制；
+     * - 未声明：沿用场景默认（质检关闭、生成保持开启）。
+     *
+     * @return array{type:string}|null
+     */
+    public function thinkingOption(ModelEndpoint $endpoint, CallScene $scene): ?array
+    {
+        if ($scene === CallScene::Embedding || $endpoint->isEmbedding()) {
+            return null;
+        }
+        if (! $this->supportsThinkingParameter($endpoint)) {
+            return null;
+        }
+        if ($endpoint->thinkingMode === 'enabled') {
+            return null;
+        }
+        if ($endpoint->thinkingMode === 'disabled') {
+            return ['type' => 'disabled'];
+        }
+
+        return $scene->disablesThinking() ? ['type' => 'disabled'] : null;
+    }
+
     private function supportsThinkingParameter(ModelEndpoint $endpoint): bool
     {
-        return in_array($endpoint->providerKey, ['ark', 'deepseek', 'glm'], true);
+        // GLM 只有 4.5 及以上支持 thinking 参数；旧版本下发会被厂商拒绝。
+        if ($endpoint->providerKey === 'glm') {
+            return $this->isGlm45Plus($endpoint);
+        }
+
+        if (in_array($endpoint->providerKey, ['ark', 'deepseek'], true)) {
+            return true;
+        }
+
+        // 第三方兼容网关托管 deepseek-* 时，沿用基线"按驱动判定"的行为：
+        // 此时 provider 预设是 custom，不能只靠 capabilities 判定。
+        if (str_starts_with(strtolower($endpoint->modelId), 'deepseek')) {
+            return true;
+        }
+
+        return $endpoint->hasCapability(Capability::Thinking);
     }
 
     private function usesReasoningSplit(ModelEndpoint $endpoint): bool

@@ -2,7 +2,10 @@
 
 namespace App\Ai\Agents;
 
+use App\Ai\Adapter\CallScene;
+use App\Ai\Adapter\ModelEndpoint;
 use App\Ai\Adapter\Protocol;
+use App\Ai\Adapter\ProviderOptionsBuilder;
 use App\Jobs\ProcessGeoFlowTaskJob;
 use Laravel\Ai\Attributes\Timeout;
 use Laravel\Ai\Contracts\Agent;
@@ -40,6 +43,8 @@ class MarkdownContentWriterAgent implements Agent, Conversational, HasProviderOp
         public iterable $tools = [],
         public ?int $maxTokens = null,
         public bool $separateReasoning = false,
+        public ?ModelEndpoint $endpoint = null,
+        public CallScene $scene = CallScene::ContentGeneration,
     ) {}
 
     /**
@@ -78,11 +83,19 @@ class MarkdownContentWriterAgent implements Agent, Conversational, HasProviderOp
             ? ['reasoning_split' => true]
             : [];
 
+        if ($this->endpoint instanceof ModelEndpoint) {
+            // 与质检链路共用同一套 thinking 决策，避免"表单声明了但生成链路不生效"。
+            $thinking = (new ProviderOptionsBuilder)->thinkingOption($this->endpoint, $this->scene);
+            if ($thinking !== null && ! $this->separateReasoning) {
+                $options['thinking'] = $thinking;
+            }
+        }
+
         if (is_null($this->maxTokens) || $this->maxTokens <= 0) {
             return $options;
         }
 
-        $protocol = match ($providerKey) {
+        $protocol = $this->endpoint?->protocol ?? match ($providerKey) {
             Lab::Gemini->value => Protocol::GeminiNative,
             Lab::OpenAI->value => Protocol::OpenAiResponses,
             default => Protocol::OpenAiChat,

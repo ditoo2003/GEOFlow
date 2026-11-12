@@ -68,7 +68,7 @@ final readonly class AiModelUsageAttemptFactory
             'business_source' => $businessSource,
             'source_type' => $sourceType,
             'source_id' => $sourceId,
-        ], $model, $scene, $maxTokensApplied, $attempt);
+        ], $model, $scene, $maxTokensApplied, $attempt, $requestPayload);
     }
 
     public function beginForSystem(
@@ -100,7 +100,7 @@ final readonly class AiModelUsageAttemptFactory
             'business_source' => $businessSource,
             'source_type' => $sourceType,
             'source_id' => $sourceId,
-        ], $model, $scene);
+        ], $model, $scene, null, null, $requestPayload);
     }
 
     public function beginForGovernanceTest(
@@ -131,7 +131,7 @@ final readonly class AiModelUsageAttemptFactory
             'business_source' => $businessSource,
             'source_type' => AiModel::class,
             'source_id' => (int) $model->getKey(),
-        ], $model, $scene);
+        ], $model, $scene, null, null, $requestPayload);
     }
 
     public function beginForVisibilityCollection(
@@ -163,7 +163,7 @@ final readonly class AiModelUsageAttemptFactory
             'business_source' => $businessSource,
             'source_type' => $sourceType,
             'source_id' => $sourceId,
-        ], $model, $scene);
+        ], $model, $scene, null, null, $requestPayload);
     }
 
     public function sourceFor(AiModel $model, int $executionAdminId): string
@@ -183,8 +183,9 @@ final readonly class AiModelUsageAttemptFactory
         ?CallScene $scene = null,
         ?int $maxTokensApplied = null,
         ?int $attempt = null,
+        ?string $requestPayload = null,
     ): AiModelUsageAttempt {
-        $observation = $this->observation($model, $scene, $maxTokensApplied, $attempt, (string) $identity['call_key']);
+        $observation = $this->observation($model, $scene, $maxTokensApplied, $attempt, (string) $identity['call_key'], $requestPayload);
         if ($snapshot instanceof AiModelUsageAccessSnapshot) {
             $this->startRecorder->record($snapshot, [...$identity, ...$observation]);
         }
@@ -208,13 +209,14 @@ final readonly class AiModelUsageAttemptFactory
         ?int $maxTokensApplied,
         ?int $attempt,
         string $callKey,
+        ?string $requestPayload = null,
     ): array {
         $observation = [];
 
         $endpoint = $this->resolveEndpoint($model);
         if ($endpoint instanceof ModelEndpoint) {
             $observation['protocol'] = $endpoint->protocol->value;
-            $observation['thinking_mode'] = $this->thinkingMode($endpoint, $scene);
+            $observation['thinking_mode'] = $this->thinkingMode($endpoint, $scene, $requestPayload);
         }
 
         $maxTokens = $maxTokensApplied ?? (is_numeric($model->max_tokens ?? null) ? (int) $model->max_tokens : null);
@@ -241,18 +243,34 @@ final readonly class AiModelUsageAttemptFactory
         }
     }
 
-    private function thinkingMode(ModelEndpoint $endpoint, ?CallScene $scene): ?string
+    private function thinkingMode(ModelEndpoint $endpoint, ?CallScene $scene, ?string $requestPayload): ?string
     {
-        if ($scene instanceof CallScene) {
-            return $endpoint->thinkingMode
-                ?? $this->optionsBuilder->thinkingModeApplied(
-                    $endpoint,
-                    $scene,
-                    $this->optionsBuilder->build($endpoint, $scene, null, false, null, null, false),
-                );
+        if (! $scene instanceof CallScene) {
+            return $endpoint->thinkingMode;
         }
 
-        return $endpoint->thinkingMode;
+        // 账本记录"实际下发"的 thinking 形态；声明值仍保留在 ai_models.thinking_mode 上。
+        // 同时把请求体粗估长度传入 builder，让 context_length 告警在生产链路真正生效。
+        return $this->optionsBuilder->thinkingModeApplied(
+            $endpoint,
+            $scene,
+            $this->optionsBuilder->build(
+                endpoint: $endpoint,
+                scene: $scene,
+                maxTokens: null,
+                estimatedInputTokens: $this->estimateInputTokens($endpoint, $requestPayload),
+                injectTokenLimit: false,
+            ),
+        );
+    }
+
+    private function estimateInputTokens(ModelEndpoint $endpoint, ?string $requestPayload): ?int
+    {
+        if ($requestPayload === null || $requestPayload === '' || $endpoint->contextLength === null) {
+            return null;
+        }
+
+        return $endpoint->estimateTokens($requestPayload);
     }
 
     /**

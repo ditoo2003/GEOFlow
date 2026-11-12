@@ -281,7 +281,12 @@ final class ArticleContentGenerationService
             && str_starts_with(strtolower($modelId), 'minimax-m');
 
         return [
-            new MarkdownContentWriterAgent(instructions: $instructions ?? '你是专业文章写作助手，请输出高质量、可发布的 Markdown 文章。最终文章禁止出现 [K1]、[K2][K3] 等内部证据编号、引用占位符或编号引用标记；需要说明依据时使用自然语言。', maxTokens: $this->maxTokens($aiModel), separateReasoning: $separateReasoning),
+            new MarkdownContentWriterAgent(
+                instructions: $instructions ?? '你是专业文章写作助手，请输出高质量、可发布的 Markdown 文章。最终文章禁止出现 [K1]、[K2][K3] 等内部证据编号、引用占位符或编号引用标记；需要说明依据时使用自然语言。',
+                maxTokens: $this->maxTokens($aiModel),
+                separateReasoning: $separateReasoning,
+                endpoint: ModelEndpointResolver::resolve($aiModel),
+            ),
             $providerName,
             $modelId,
             $providerUrl,

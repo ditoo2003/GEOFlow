@@ -2,7 +2,7 @@
 
 namespace App\Services\GeoFlow;
 
-use App\Ai\Adapter\CallScene;
+use App\Ai\Adapter\ModelEndpointResolver;
 use App\Ai\Agents\MarkdownContentWriterAgent;
 use App\Data\Ai\SystemAiIdentity;
 use App\Exceptions\AiModelAccessException;
@@ -83,6 +83,22 @@ final class EnterpriseKnowledgeDraftService
 
     private const SOURCE_COVERAGE_APPEND_CHAR_LIMIT = 160000;
 
+    /**
+     * 单次草稿执行的总预算，与 GenerateEnterpriseKnowledgeDraftJob::$timeout 同源。
+     */
+    public static function executionBudgetSeconds(): int
+    {
+        return max(120, (int) config('geoflow.content_job_timeout_seconds', 480));
+    }
+
+    /**
+     * 调用锁只需覆盖一次执行的预算，避免 (模块数 × 单次超时) 造成的长时间残留锁。
+     */
+    public static function invocationLockTtlSeconds(): int
+    {
+        return self::executionBudgetSeconds() + 60;
+    }
+
     public function __construct(
         private readonly ApiKeyCrypto $apiKeyCrypto,
         private readonly KnowledgeChunkSyncCoordinator $chunkSyncCoordinator,
@@ -143,6 +159,8 @@ final class EnterpriseKnowledgeDraftService
         ?EnterpriseKnowledgeExecutionFence $executionFence = null,
     ): array {
         $executionFence ??= EnterpriseKnowledgeExecutionFence::fromProject($project);
+        // 与 Job::$timeout 同源：所有模块调用共享一个执行预算，避免单次 420s 被 Job 硬杀。
+        $deadlineAt = microtime(true) + self::executionBudgetSeconds() - 60;
         $sourceBlocks = $this->sourceBlocks($project);
         $sourceText = $this->buildSourceText($project, $sourceBlocks);
         $sourceFacts = $this->sourceCoverageFacts($sourceText);
@@ -154,7 +172,7 @@ final class EnterpriseKnowledgeDraftService
             try {
                 $invocationLock = $this->invocationLocks->acquireForInvocation(
                     (int) $model->getKey(),
-                    (count(self::DRAFT_MODULES) + 1) * CallScene::ContentGeneration->budget()['total'] + 60,
+                    self::invocationLockTtlSeconds(),
                 );
                 $currentModel = AiModel::query()->find((int) $model->getKey());
                 if (! $currentModel instanceof AiModel) {
@@ -196,6 +214,7 @@ final class EnterpriseKnowledgeDraftService
                     $runtime,
                     $delivery,
                     $executionFence,
+                    $deadlineAt,
                 );
                 if ($content === '') {
                     throw new \RuntimeException(__('admin.enterprise_knowledge.error.ai_empty'));
@@ -430,6 +449,7 @@ PROMPT;
         array $runtime,
         EnterpriseKnowledgeDraftUsageDelivery $delivery,
         EnterpriseKnowledgeExecutionFence $executionFence,
+        float $deadlineAt,
     ): string {
         if ($this->shouldUseModularDraft($sourceText, $sourceBlocks)) {
             try {
@@ -440,6 +460,7 @@ PROMPT;
                     $runtime,
                     $delivery,
                     $executionFence,
+                    $deadlineAt,
                 );
             } catch (AiModelAccessException|PermanentAiProviderException $exception) {
                 throw $exception;
@@ -463,6 +484,7 @@ PROMPT;
             $runtime,
             $delivery,
             $executionFence,
+            $deadlineAt,
         );
     }
 
@@ -477,8 +499,15 @@ PROMPT;
         array $runtime,
         EnterpriseKnowledgeDraftUsageDelivery $delivery,
         EnterpriseKnowledgeExecutionFence $executionFence,
+        float $deadlineAt,
     ): string {
-        $agent = new MarkdownContentWriterAgent($this->buildSystemPrompt(), [], [], 6000);
+        $agent = new MarkdownContentWriterAgent(
+            $this->buildSystemPrompt(),
+            [],
+            [],
+            6000,
+            endpoint: ModelEndpointResolver::resolve($runtime['model']),
+        );
 
         return $this->promptWithQuota(
             $agent,
@@ -488,6 +517,7 @@ PROMPT;
             $delivery,
             'single',
             $executionFence,
+            $deadlineAt,
         );
     }
 
@@ -503,10 +533,17 @@ PROMPT;
         array $runtime,
         EnterpriseKnowledgeDraftUsageDelivery $delivery,
         EnterpriseKnowledgeExecutionFence $executionFence,
+        float $deadlineAt,
     ): string {
         $sections = [];
         foreach (self::DRAFT_MODULES as $module) {
-            $agent = new MarkdownContentWriterAgent($this->buildSystemPrompt(), [], [], 4200);
+            $agent = new MarkdownContentWriterAgent(
+                $this->buildSystemPrompt(),
+                [],
+                [],
+                4200,
+                endpoint: ModelEndpointResolver::resolve($runtime['model']),
+            );
             $moduleContent = $this->promptWithQuota(
                 $agent,
                 $this->buildModuleUserPrompt($project, $sourceBlocks, $sourceFacts, $module),
@@ -515,6 +552,7 @@ PROMPT;
                 $delivery,
                 (string) $module['key'],
                 $executionFence,
+                $deadlineAt,
             );
             $noiseResidues = $this->draftNoiseResidues($moduleContent);
             if ($noiseResidues !== []) {
@@ -1350,7 +1388,17 @@ MARKDOWN;
         EnterpriseKnowledgeDraftUsageDelivery $delivery,
         string $stage,
         EnterpriseKnowledgeExecutionFence $executionFence,
+        float $deadlineAt,
     ): string {
+        $remainingSeconds = (int) floor($deadlineAt - microtime(true));
+        if ($remainingSeconds < 30) {
+            throw new \RuntimeException(__('admin.enterprise_knowledge.error.ai_budget_exhausted'));
+        }
+        $timeoutSeconds = min(
+            max(1, (int) config('geoflow.content_provider_timeout_seconds', 420)),
+            $remainingSeconds,
+        );
+
         $this->executionGuard->heartbeat($project, $runtime['model'], $executionFence);
         $reservation = $this->usageQuota->reserveModel($runtime['model']);
         if ($reservation === null) {
@@ -1367,6 +1415,7 @@ MARKDOWN;
                 [],
                 (string) $runtime['provider'],
                 (string) $runtime['model_id'],
+                $timeoutSeconds,
             );
             $providerReturned = true;
             $delivery->providerReturned($usageAttempt, $reservation, $response->usage ?? null);
