@@ -2,6 +2,7 @@
 
 namespace App\Services\GeoFlow;
 
+use App\Ai\Adapter\CallScene;
 use App\Ai\Agents\MarkdownContentWriterAgent;
 use App\Data\Ai\SystemAiIdentity;
 use App\Exceptions\AiModelAccessException;
@@ -153,7 +154,7 @@ final class EnterpriseKnowledgeDraftService
             try {
                 $invocationLock = $this->invocationLocks->acquireForInvocation(
                     (int) $model->getKey(),
-                    (count(self::DRAFT_MODULES) + 1) * MarkdownContentWriterAgent::PROVIDER_TIMEOUT_SECONDS + 60,
+                    (count(self::DRAFT_MODULES) + 1) * CallScene::ContentGeneration->budget()['total'] + 60,
                 );
                 $currentModel = AiModel::query()->find((int) $model->getKey());
                 if (! $currentModel instanceof AiModel) {

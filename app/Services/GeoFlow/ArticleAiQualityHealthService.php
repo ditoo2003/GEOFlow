@@ -2,9 +2,9 @@
 
 namespace App\Services\GeoFlow;
 
+use App\Ai\Adapter\TimeoutChainValidator;
 use App\Events\ArticleAiQualityHealthChanged;
 use App\Jobs\ArticleAiQualityProbeJob;
-use App\Jobs\ProcessArticleAiQualityJob;
 use App\Models\ArticleAiOptimizationRun;
 use App\Models\ArticleAiQualityCheck;
 use Illuminate\Database\Eloquent\Builder;
@@ -36,14 +36,7 @@ class ArticleAiQualityHealthService
             'front' => max(1, (int) config('geoflow.ai_quality_front_workers', 2)),
             'backfill' => max(1, (int) config('geoflow.ai_quality_backfill_workers', 1)),
         ];
-        $timeouts = [
-            'business' => (int) config('geoflow.ai_quality_deadline_seconds', 180)
-                + (int) config('geoflow.ai_quality_sampled_fallback_seconds', 45)
-                + (int) config('geoflow.ai_quality_persistence_reserve_seconds', 10),
-            'job' => (new ProcessArticleAiQualityJob(0))->timeout,
-            'worker' => (int) config('geoflow.ai_quality_worker_timeout_seconds', 250),
-            'retry_after' => (int) config('queue.connections.redis.retry_after', 960),
-        ];
+        $timeouts = (new TimeoutChainValidator)->qualityChain();
         $oldestActive = ArticleAiQualityCheck::query()
             ->where('status', 'queued')
             ->oldest('created_at')
@@ -93,9 +86,7 @@ class ArticleAiQualityHealthService
         if ($optimizationQueue === '' || $optimizationBulkQueue === '' || $optimizationQueue === $optimizationBulkQueue) {
             $issues[] = 'optimization_queue_configuration_conflict';
         }
-        if (! ($timeouts['business'] < $timeouts['job']
-            && $timeouts['job'] < $timeouts['worker']
-            && $timeouts['worker'] < $timeouts['retry_after'])) {
+        if ((new TimeoutChainValidator)->violations($timeouts) !== []) {
             $issues[] = 'timeout_configuration_conflict';
         }
         if ($counts['front'] === 0) {

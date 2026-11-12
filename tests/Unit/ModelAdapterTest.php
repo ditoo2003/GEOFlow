@@ -181,4 +181,38 @@ class ModelAdapterTest extends TestCase
             'retry_after' => 50,
         ]));
     }
+
+    public function test_generation_and_optimization_chains_share_the_same_ordering_rule(): void
+    {
+        $validator = new TimeoutChainValidator;
+
+        $generation = $validator->generationChain();
+        $this->assertSame(420, $generation['business']);
+        $this->assertSame(480, $generation['job']);
+        $this->assertSame(930, $generation['worker']);
+        $this->assertSame([], $validator->violations($generation));
+
+        $optimization = $validator->optimizationChain();
+        $this->assertSame(850, $optimization['job']);
+        $this->assertSame(900, $optimization['worker']);
+        $this->assertSame([], $validator->violations($optimization));
+
+        config()->set('geoflow.content_worker_timeout_seconds', 400);
+        $this->assertNotSame([], $validator->violations($validator->generationChain()));
+    }
+
+    public function test_content_generation_budget_reads_the_shared_config_source(): void
+    {
+        config()->set('geoflow.content_provider_timeout_seconds', 260);
+
+        $endpoint = ModelEndpointResolver::fromParts(
+            'https://ark.cn-beijing.volces.com/api/v3',
+            'ep-20260101-abc',
+            'chat',
+        );
+        $budget = CallBudget::for($endpoint, CallScene::ContentGeneration);
+
+        $this->assertSame(260, $budget->total);
+        $this->assertSame(260, $budget->read);
+    }
 }

@@ -46,7 +46,11 @@ enum CallScene: string
     public function budget(): array
     {
         return match ($this) {
-            self::ContentGeneration => ['connect' => 10, 'read' => 420, 'total' => 420],
+            self::ContentGeneration => [
+                'connect' => 10,
+                'read' => (int) config('geoflow.content_provider_timeout_seconds', 420),
+                'total' => (int) config('geoflow.content_provider_timeout_seconds', 420),
+            ],
             self::ArticleQuality => [
                 'connect' => 8,
                 'read' => (int) config('geoflow.ai_quality_request_timeout_seconds', 160),

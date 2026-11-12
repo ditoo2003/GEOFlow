@@ -318,6 +318,10 @@ return [
     // 正文生成默认最大输出 token 数；当 AI 模型未单独配置 max_tokens 时使用此兜底值，
     // 避免依赖各服务商较小的默认上限（常见 4K）导致长文被截断。
     'content_max_tokens' => max(256, (int) env('GEOFLOW_CONTENT_MAX_TOKENS', 16384)),
+    // 正文生成链路的超时预算：单次 HTTP 调用 < 队列 job < worker < retry_after。
+    'content_provider_timeout_seconds' => max(30, min(600, (int) env('GEOFLOW_CONTENT_PROVIDER_TIMEOUT_SECONDS', 420))),
+    'content_job_timeout_seconds' => max(60, min(900, (int) env('GEOFLOW_CONTENT_JOB_TIMEOUT_SECONDS', 480))),
+    'content_worker_timeout_seconds' => max(90, min(950, (int) env('GEOFLOW_CONTENT_WORKER_TIMEOUT_SECONDS', 930))),
     // AI 可见性查询底层能力：豆包 Ark Responses、豆包 Search Custom、DeepSeek 二次分析共用。
     'ai_visibility' => [
         'http_timeout_seconds' => max(5, (int) env('GEOFLOW_AI_VISIBILITY_HTTP_TIMEOUT', 60)),

@@ -42,6 +42,11 @@ final class AiModelUsageAttemptReconciler
                         'output_tokens' => null,
                         'total_tokens' => null,
                         'estimated_cost' => null,
+                        'duration_ms' => null,
+                        'protocol' => $start->protocol,
+                        'thinking_mode' => $start->thinking_mode,
+                        'max_tokens_applied' => $start->max_tokens_applied,
+                        'attempt' => $start->attempt,
                     ];
                     ksort($attributes);
                     $reconciled += DB::table('ai_model_usage_events')->insertOrIgnore([

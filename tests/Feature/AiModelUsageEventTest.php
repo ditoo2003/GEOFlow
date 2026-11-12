@@ -79,6 +79,55 @@ class AiModelUsageEventTest extends TestCase
         ]);
     }
 
+    public function test_attempt_observation_columns_are_filled_and_carried_into_reconciled_events(): void
+    {
+        $owner = $this->admin('observation-owner', 'super_admin');
+        $model = $this->model($owner, AiModel::ACCESS_SCOPE_SYSTEM_ONLY);
+        $factory = app(AiModelUsageAttemptFactory::class);
+        $requestId = $factory->requestId();
+
+        $attempt = $factory->beginForSystem(
+            model: $model,
+            identity: SystemAiIdentity::knowledgeIndex(),
+            requestId: $requestId,
+            requestPayload: 'observation payload',
+            callKey: 'chunk.attempt-1',
+            operation: 'knowledge.semantic_chunking',
+            businessSource: 'knowledge_index',
+        );
+
+        $start = AiModelUsageAttemptStart::query()->sole();
+        $this->assertSame('openai_chat', $start->protocol);
+        $this->assertSame(1, $start->attempt);
+        $this->assertNull($start->thinking_mode);
+        $this->assertNull($start->max_tokens_applied);
+
+        $attempt->succeeded(['prompt_tokens' => 1, 'completion_tokens' => 1]);
+        $event = AiModelUsageEvent::query()->sole();
+        $this->assertSame('openai_chat', $event->protocol);
+        $this->assertSame(1, $event->attempt);
+        $this->assertNotNull($event->duration_ms);
+
+        $this->travelTo(now()->subMinutes(10));
+        $staleRequestId = $factory->requestId();
+        $factory->beginForSystem(
+            model: $model,
+            identity: SystemAiIdentity::knowledgeIndex(),
+            requestId: $staleRequestId,
+            requestPayload: 'stale observation payload',
+            callKey: 'chunk.attempt-2',
+            operation: 'knowledge.semantic_chunking',
+            businessSource: 'knowledge_index',
+        );
+        $this->travelBack();
+
+        $this->artisan('geoflow:reconcile-ai-usage-attempts', ['--older-than' => 300])->assertSuccessful();
+        $reconciled = AiModelUsageEvent::query()->where('request_id', $staleRequestId)->sole();
+        $this->assertSame('openai_chat', $reconciled->protocol);
+        $this->assertSame(2, $reconciled->attempt);
+        $this->assertNull($reconciled->duration_ms);
+    }
+
     public function test_system_attempt_requires_knowledge_index_identity_and_records_system_attribution(): void
     {
         $owner = $this->admin('system-owner', 'super_admin');

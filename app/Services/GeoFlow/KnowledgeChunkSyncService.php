@@ -1281,7 +1281,7 @@ class KnowledgeChunkSyncService
             try {
                 $lock = $this->invocationLocks->acquireForInvocation(
                     (int) $model->getKey(),
-                    MarkdownContentWriterAgent::PROVIDER_TIMEOUT_SECONDS + 60,
+                    CallScene::ContentGeneration->budget()['total'] + 60,
                 );
                 $currentModel = $this->systemModelAccessResolver->assertSemanticChunkingCurrent($identity, $model);
                 $this->assertKnowledgeSyncSourceCurrent(

@@ -7,6 +7,7 @@ __pycache__/
 /logs
 /uploads
 .env
+.env.testing
 .env.prod
 .env.backup
 .env.production

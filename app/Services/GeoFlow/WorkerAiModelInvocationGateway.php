@@ -2,6 +2,7 @@
 
 namespace App\Services\GeoFlow;
 
+use App\Ai\Adapter\CallScene;
 use App\Data\Ai\AiExecutionContext;
 use App\Exceptions\AiModelAccessException;
 use App\Models\AiModel;
@@ -72,6 +73,9 @@ final readonly class WorkerAiModelInvocationGateway
                         businessSource: 'worker_article_generation',
                         sourceType: $executionContext->sourceType,
                         sourceId: $executionContext->sourceId,
+                        scene: CallScene::ContentGeneration,
+                        maxTokensApplied: $this->generationService->maxTokens($providerModel),
+                        attempt: 1,
                     );
                 },
             );

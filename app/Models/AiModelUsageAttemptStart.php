@@ -29,6 +29,8 @@ final class AiModelUsageAttemptStart extends Model
             'execution_admin_id' => 'integer',
             'ai_config_access_version' => 'integer',
             'source_id' => 'string',
+            'max_tokens_applied' => 'integer',
+            'attempt' => 'integer',
         ];
     }
 }

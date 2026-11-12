@@ -37,7 +37,7 @@ class ProcessGeoFlowTaskJob implements ShouldQueue
     public int $tries = 1;
 
     /**
-     * 单次执行超时（秒）。
+     * 单次执行超时（秒），与生成链 CallBudget 共用同一配置源。
      */
     public int $timeout = 480;
 
@@ -48,7 +48,9 @@ class ProcessGeoFlowTaskJob implements ShouldQueue
     public function __construct(
         public readonly int $taskRunId,
         public readonly ?string $claimLeaseToken = null,
-    ) {}
+    ) {
+        $this->timeout = (int) config('geoflow.content_job_timeout_seconds', 480);
+    }
 
     /**
      * 为 Horizon 监控提供稳定标签，便于按任务维度聚合队列表现。

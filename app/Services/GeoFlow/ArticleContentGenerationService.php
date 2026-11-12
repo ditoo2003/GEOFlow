@@ -2,6 +2,9 @@
 
 namespace App\Services\GeoFlow;
 
+use App\Ai\Adapter\CallBudget;
+use App\Ai\Adapter\CallScene;
+use App\Ai\Adapter\ModelEndpointResolver;
 use App\Ai\Agents\MarkdownContentWriterAgent;
 use App\Exceptions\AiModelAccessException;
 use App\Models\AiModel;
@@ -32,9 +35,15 @@ final class ArticleContentGenerationService
             throw new RuntimeException('AI 模型不可用或已达到今日调用上限');
         }
 
+        $budget = CallBudget::for(
+            ModelEndpointResolver::resolve($aiModel),
+            CallScene::ContentGeneration,
+            $providerTimeout ?? $this->providerTimeoutSeconds(),
+        );
+
         try {
             $beforeProvider?->__invoke($aiModel);
-            $response = $agent->prompt($prompt, [], $providerName, $modelId, $providerTimeout);
+            $response = $agent->prompt($prompt, [], $providerName, $modelId, $budget->total);
         } catch (Throwable $exception) {
             $this->releaseDailyUsage($reservation);
 
@@ -214,7 +223,7 @@ final class ArticleContentGenerationService
 
     public function providerTimeoutSeconds(): int
     {
-        return MarkdownContentWriterAgent::PROVIDER_TIMEOUT_SECONDS;
+        return (int) config('geoflow.content_provider_timeout_seconds', MarkdownContentWriterAgent::PROVIDER_TIMEOUT_SECONDS);
     }
 
     /**

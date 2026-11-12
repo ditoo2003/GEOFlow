@@ -13,6 +13,7 @@ final class AiModelUsageAttemptStartRecorder
 {
     private const ALLOWED_FIELDS = [
         'call_key', 'operation', 'business_source', 'source_type', 'source_id',
+        'protocol', 'thinking_mode', 'max_tokens_applied', 'attempt',
     ];
 
     /** @param array<string, mixed> $identity */
@@ -28,6 +29,10 @@ final class AiModelUsageAttemptStartRecorder
             'business_source' => ['required', 'string', 'max:80', 'regex:/\A[a-z0-9_.:-]+\z/i'],
             'source_type' => ['nullable', 'string', 'max:255', 'required_with:source_id', 'regex:/\A[A-Za-z0-9_.:\\\\-]+\z/'],
             'source_id' => ['nullable', 'string', 'max:120', 'required_with:source_type', 'regex:/\A[a-z0-9_.:-]+\z/i'],
+            'protocol' => ['nullable', 'string', 'max:40', 'regex:/\A[a-z0-9_.:-]+\z/i'],
+            'thinking_mode' => ['nullable', 'string', 'max:40', 'regex:/\A[a-z0-9_.:-]+\z/i'],
+            'max_tokens_applied' => ['nullable', 'integer', 'min:0'],
+            'attempt' => ['nullable', 'integer', 'min:1'],
         ])->validate();
         $attributes = [...$snapshot->toUsageAttributes(), ...$attributes];
         $fingerprint = $this->fingerprint($attributes);
