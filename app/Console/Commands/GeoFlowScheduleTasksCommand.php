@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Models\Article;
 use App\Models\Task;
 use App\Models\TaskRun;
@@ -22,7 +23,9 @@ use Illuminate\Support\Facades\DB;
  */
 class GeoFlowScheduleTasksCommand extends Command
 {
-    protected $signature = 'geoflow:schedule-tasks';
+    use IteratesTenants;
+
+    protected $signature = 'geoflow:schedule-tasks {--tenant=* : 只调度指定租户（可多次传入或逗号分隔），缺省遍历全部租户}';
 
     protected $description = 'Scan active GeoFlow tasks and enqueue due jobs';
 
@@ -33,9 +36,20 @@ class GeoFlowScheduleTasksCommand extends Command
     }
 
     /**
-     * 扫描活跃任务并按条件入队。
+     * 按租户扫描活跃任务并按条件入队。
+     *
+     * 调度器在系统上下文运行，直接扫描会把所有租户的任务混在一起，
+     * 且新建的 `task_runs` 拿不到归属租户；因此逐租户执行。
      */
     public function handle(): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->scheduleDueTasks());
+    }
+
+    /**
+     * 扫描当前租户的活跃任务并按条件入队。
+     */
+    private function scheduleDueTasks(): int
     {
         $now = now();
         $recoveredCount = $this->jobQueueService->recoverStaleJobs();

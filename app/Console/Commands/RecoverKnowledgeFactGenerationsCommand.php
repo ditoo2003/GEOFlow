@@ -2,17 +2,20 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Services\GeoFlow\KnowledgeFacts\KnowledgeFactGenerationRecoveryService;
 use Illuminate\Console\Command;
 
 class RecoverKnowledgeFactGenerationsCommand extends Command
 {
+    use IteratesTenants;
+
     /**
      * The name and signature of the console command.
      *
      * @var string
      */
-    protected $signature = 'geoflow:recover-knowledge-fact-generations {--limit=50}';
+    protected $signature = 'geoflow:recover-knowledge-fact-generations {--limit=50} {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     /**
      * The console command description.
@@ -25,6 +28,11 @@ class RecoverKnowledgeFactGenerationsCommand extends Command
      * Execute the console command.
      */
     public function handle(KnowledgeFactGenerationRecoveryService $recovery): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->recover($recovery));
+    }
+
+    private function recover(KnowledgeFactGenerationRecoveryService $recovery): int
     {
         $result = $recovery->reconcile(max(1, min(500, (int) $this->option('limit'))));
         $this->info(sprintf(

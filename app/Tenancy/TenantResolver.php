@@ -78,6 +78,25 @@ final class TenantResolver
         return Tenant::query()->count();
     }
 
+    /**
+     * 全部租户 ID（升序）。调度与 CLI 用它按租户迭代执行。
+     *
+     * @return list<int>
+     */
+    public function tenantIds(): array
+    {
+        return Tenant::query()
+            ->orderBy('id')
+            ->pluck('id')
+            ->map(static fn (mixed $id): int => (int) $id)
+            ->all();
+    }
+
+    public function tenantExists(int $tenantId): bool
+    {
+        return Tenant::query()->whereKey($tenantId)->exists();
+    }
+
     public function defaultTenantId(): int
     {
         return (int) config('tenancy.default_tenant_id', 1);

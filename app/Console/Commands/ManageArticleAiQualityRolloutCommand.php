@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Models\Article;
 use App\Models\ArticleAiQualityRollout;
 use App\Models\KnowledgeBase;
@@ -17,12 +18,15 @@ use Throwable;
 
 class ManageArticleAiQualityRolloutCommand extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'geoflow:ai-quality-rollout
         {action=status : status, promote, rollback, freeze, unfreeze, incident, sample-on, sample-off}
         {--track= : principles, execution, scoring, shadow, atomic-shadow, atomic-fact}
         {--to= : Target rollout stage}
         {--report= : End-to-end evaluation JSON report}
-        {--incident= : Major-risk incident code}';
+        {--incident= : Major-risk incident code}
+        {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Manage guarded AI quality rollout stages and the sampled-release emergency switch';
 
@@ -36,6 +40,11 @@ class ManageArticleAiQualityRolloutCommand extends Command
     }
 
     public function handle(): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->manage());
+    }
+
+    private function manage(): int
     {
         $action = strtolower(trim((string) $this->argument('action')));
         if ($action === 'status') {

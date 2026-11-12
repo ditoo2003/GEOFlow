@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Ai\Workspace\AiPayloadDigest;
+use App\Console\Concerns\IteratesTenants;
 use App\Models\AiConversation;
 use App\Models\AiWorkspaceApproval;
 use App\Models\AiWorkspaceArtifact;
@@ -21,13 +22,21 @@ use Laravel\Ai\Models\ConversationMessage;
 
 final class PruneAiWorkspaceDataCommand extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'geoflow:prune-ai-workspace
         {--days= : Retention period in days}
-        {--dry-run : Report the records that are eligible without deleting or redacting data}';
+        {--dry-run : Report the records that are eligible without deleting or redacting data}
+        {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Remove expired AI workspace conversation and payload data';
 
     public function handle(): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->prune());
+    }
+
+    private function prune(): int
     {
         $days = max(1, (int) ($this->option('days') ?: config('ai-workspace.retention_days', 90)));
         $cutoff = now()->subDays($days);

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Models\ArticleAiQualityCheck;
 use App\Models\KnowledgeBase;
 use App\Models\Task;
@@ -12,11 +13,14 @@ use Illuminate\Support\Facades\DB;
 
 class BackfillAiQualityRetrievalCommand extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'geoflow:backfill-ai-quality-retrieval
         {--batch=200 : Rows processed per batch}
         {--dry-run : Report eligible rows without changing data}
         {--verify : Read only and fail while any backfill count remains nonzero}
-        {--json : Emit structured backfill counts}';
+        {--json : Emit structured backfill counts}
+        {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Backfill legacy AI quality modes, source ledgers, and serving chunk generations';
 
@@ -27,7 +31,6 @@ class BackfillAiQualityRetrievalCommand extends Command
 
     public function handle(): int
     {
-        $batch = max(1, min(1000, (int) $this->option('batch')));
         $dryRun = (bool) $this->option('dry-run') || (bool) $this->option('verify');
         $counts = [
             'tasks' => 0,
@@ -39,6 +42,41 @@ class BackfillAiQualityRetrievalCommand extends Command
             'readiness_projections' => 0,
             'atomic_fact_counts' => 0,
         ];
+
+        $exit = $this->runForEachTenant(function () use (&$counts): int {
+            $this->backfillTenant($counts);
+
+            return self::SUCCESS;
+        });
+
+        $complete = array_sum($counts) === 0;
+        if ($this->option('json')) {
+            $this->line(json_encode([
+                'schema_version' => 1,
+                'status' => $this->option('verify') && ! $complete ? 'fail' : 'pass',
+                'dry_run' => $dryRun,
+                'complete' => $complete,
+                'counts' => $counts,
+            ], JSON_THROW_ON_ERROR));
+        } else {
+            $prefix = $dryRun ? 'Eligible' : 'Backfilled';
+            foreach ($counts as $kind => $count) {
+                $this->line(sprintf('%s %s: %d', $prefix, $kind, $count));
+            }
+        }
+
+        if ($exit !== self::SUCCESS) {
+            return self::FAILURE;
+        }
+
+        return $this->option('verify') && ! $complete ? self::FAILURE : self::SUCCESS;
+    }
+
+    /** @param array<string,int> $counts */
+    private function backfillTenant(array &$counts): void
+    {
+        $batch = max(1, min(1000, (int) $this->option('batch')));
+        $dryRun = (bool) $this->option('dry-run') || (bool) $this->option('verify');
 
         KnowledgeBase::query()
             ->where('ai_quality_content_hash', '')
@@ -227,23 +265,6 @@ class BackfillAiQualityRetrievalCommand extends Command
                 }
             });
 
-        $complete = array_sum($counts) === 0;
-        if ($this->option('json')) {
-            $this->line(json_encode([
-                'schema_version' => 1,
-                'status' => $this->option('verify') && ! $complete ? 'fail' : 'pass',
-                'dry_run' => $dryRun,
-                'complete' => $complete,
-                'counts' => $counts,
-            ], JSON_THROW_ON_ERROR));
-        } else {
-            $prefix = $dryRun ? 'Eligible' : 'Backfilled';
-            foreach ($counts as $kind => $count) {
-                $this->line(sprintf('%s %s: %d', $prefix, $kind, $count));
-            }
-        }
-
-        return $this->option('verify') && ! $complete ? self::FAILURE : self::SUCCESS;
     }
 
     /** @param array<string,int> $counts */

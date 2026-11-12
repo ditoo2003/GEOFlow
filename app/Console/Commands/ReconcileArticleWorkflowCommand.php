@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Models\AiQualityAuditEvent;
 use App\Models\Article;
 use App\Models\Task;
@@ -14,16 +15,24 @@ use Illuminate\Support\Str;
 
 class ReconcileArticleWorkflowCommand extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'geoflow:reconcile-article-workflow
         {--task= : Limit preview to one task}
         {--article=* : Limit preview to article IDs}
         {--limit=100 : Maximum articles per manifest, at most 500}
         {--manifest= : JSON preview output or reviewed apply input}
-        {--apply : Apply the reviewed manifest with locked version checks}';
+        {--apply : Apply the reviewed manifest with locked version checks}
+        {--tenant= : 租户 ID；多租户时必须显式指定（清单文件按租户隔离）}';
 
     protected $description = 'Preview article workflow recovery; apply requires a reviewed manifest and never approves content';
 
     public function handle(ArticlePublicationEligibilityService $eligibility): int
+    {
+        return $this->runForSingleTenant(fn (): int => $this->reconcile($eligibility));
+    }
+
+    private function reconcile(ArticlePublicationEligibilityService $eligibility): int
     {
         $path = (string) $this->option('manifest');
         if (! $this->option('apply')) {

@@ -2,16 +2,24 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Services\HostedSites\HostedSiteReconciler;
 use Illuminate\Console\Command;
 
 final class HostedSitesReconcileCommand extends Command
 {
-    protected $signature = 'hosted-sites:reconcile {--limit=500} {--dry-run}';
+    use IteratesTenants;
+
+    protected $signature = 'hosted-sites:reconcile {--limit=500} {--dry-run} {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Repair due hosted allocation requests and expired reservations';
 
     public function handle(HostedSiteReconciler $reconciler): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->reconcile($reconciler));
+    }
+
+    private function reconcile(HostedSiteReconciler $reconciler): int
     {
         $result = $reconciler->reconcile(
             (int) $this->option('limit'),

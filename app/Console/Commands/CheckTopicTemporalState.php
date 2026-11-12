@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Models\Topic;
 use App\Services\Topics\TopicFreshnessService;
 use Carbon\CarbonImmutable;
@@ -9,11 +10,18 @@ use Illuminate\Console\Command;
 
 final class CheckTopicTemporalState extends Command
 {
-    protected $signature = 'geoflow:check-topic-temporal-state {--limit=500}';
+    use IteratesTenants;
+
+    protected $signature = 'geoflow:check-topic-temporal-state {--limit=500} {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Record published topic time-window changes and review reminders';
 
     public function handle(TopicFreshnessService $freshness): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->check($freshness));
+    }
+
+    private function check(TopicFreshnessService $freshness): int
     {
         $changed = 0;
         Topic::query()->whereNotNull('public_revision_id')

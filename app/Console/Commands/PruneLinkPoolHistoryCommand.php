@@ -2,17 +2,25 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 final class PruneLinkPoolHistoryCommand extends Command
 {
-    protected $signature = 'geoflow:prune-link-pool {--limit=5000}';
+    use IteratesTenants;
+
+    protected $signature = 'geoflow:prune-link-pool {--limit=5000} {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Prune link recommendation events, metrics, and non-current batches after 90 days';
 
     public function handle(): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->prune());
+    }
+
+    private function prune(): int
     {
         if (! Schema::hasTable('link_selection_batches')) {
             $this->info('Link pool has not been installed.');

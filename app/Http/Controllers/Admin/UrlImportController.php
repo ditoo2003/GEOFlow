@@ -129,7 +129,7 @@ class UrlImportController extends Controller
                     'started_at' => $job->started_at ?: now(),
                 ]);
 
-                if (! $this->spawnUrlImportWorker((int) $job->id)) {
+                if (! $this->spawnUrlImportWorker((int) $job->id, (int) $job->tenant_id)) {
                     $job = $this->urlImportProcessingService->process($job->refresh());
                 }
             }
@@ -224,7 +224,7 @@ class UrlImportController extends Controller
         return is_array($decoded) ? $decoded : [];
     }
 
-    private function spawnUrlImportWorker(int $jobId): bool
+    private function spawnUrlImportWorker(int $jobId, int $tenantId): bool
     {
         if (! function_exists('exec')) {
             return false;
@@ -235,11 +235,13 @@ class UrlImportController extends Controller
             $phpBinary = 'php';
         }
 
+        // 子进程默认在系统上下文运行，必须显式带上租户，避免写入落不到归属租户。
         $command = sprintf(
-            '%s %s geoflow:process-url-import %d > %s 2>&1 & echo $!',
+            '%s %s geoflow:process-url-import %d --tenant=%d > %s 2>&1 & echo $!',
             escapeshellarg($phpBinary),
             escapeshellarg(base_path('artisan')),
             $jobId,
+            $tenantId,
             escapeshellarg(storage_path('logs/url-import-worker-'.$jobId.'.log'))
         );
 

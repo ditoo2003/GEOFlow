@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Models\Article;
 use App\Services\GeoFlow\ArticleAiQualityInvalidationService;
 use App\Services\GeoFlow\ArticleCitationMarkerCleaner;
@@ -13,10 +14,13 @@ use Throwable;
 
 final class GeoFlowCleanArticleCitationMarkersCommand extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'geoflow:clean-article-citation-markers
         {--apply : Persist the cleanup; the default is a dry run}
         {--after-id=0 : Resume after this article ID}
-        {--limit=0 : Stop after scanning this many articles}';
+        {--limit=0 : Stop after scanning this many articles}
+        {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Scan AI-generated articles and remove confirmed citation marker forms';
 
@@ -30,6 +34,11 @@ final class GeoFlowCleanArticleCitationMarkersCommand extends Command
     }
 
     public function handle(): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->clean());
+    }
+
+    private function clean(): int
     {
         $apply = (bool) $this->option('apply');
         $afterId = max(0, (int) $this->option('after-id'));

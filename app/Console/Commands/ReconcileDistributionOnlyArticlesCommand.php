@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Models\Article;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Builder;
@@ -9,12 +10,20 @@ use Illuminate\Database\Eloquent\Collection;
 
 class ReconcileDistributionOnlyArticlesCommand extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'geoflow:reconcile-distribution-only-articles
-        {--apply : Persist the repair; the default is a dry run}';
+        {--apply : Persist the repair; the default is a dry run}
+        {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Keep articles from distribution-only tasks private on the primary site';
 
     public function handle(): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->reconcile());
+    }
+
+    private function reconcile(): int
     {
         $apply = (bool) $this->option('apply');
         $matched = 0;

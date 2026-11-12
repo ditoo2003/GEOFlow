@@ -2,16 +2,24 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Services\GeoFlow\UrlImportRecoveryService;
 use Illuminate\Console\Command;
 
 final class RecoverUrlImportsCommand extends Command
 {
-    protected $signature = 'geoflow:recover-url-imports {--limit=50}';
+    use IteratesTenants;
+
+    protected $signature = 'geoflow:recover-url-imports {--limit=50} {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Requeue stale URL imports whose execution lease is missing or expired';
 
     public function handle(UrlImportRecoveryService $recovery): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->recover($recovery));
+    }
+
+    private function recover(UrlImportRecoveryService $recovery): int
     {
         $result = $recovery->reconcile(max(1, min(500, (int) $this->option('limit'))));
         $this->info(sprintf(

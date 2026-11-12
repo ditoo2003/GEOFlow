@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Models\AiVisibilityRun;
 use App\Models\AiVisibilityTopicKeyword;
 use App\Services\GeoFlow\AiVisibility\AiVisibilityKeywordNormalizer;
@@ -9,11 +10,18 @@ use Illuminate\Console\Command;
 
 class GeoFlowBackfillAiVisibilityKeywordHashes extends Command
 {
-    protected $signature = 'geoflow:ai-visibility:backfill-keyword-hashes';
+    use IteratesTenants;
+
+    protected $signature = 'geoflow:ai-visibility:backfill-keyword-hashes {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Backfill keyword hashes for existing AI visibility runs and auto-classify registered topic matches';
 
     public function handle(): int
+    {
+        return $this->runForEachTenant(fn (): int => $this->backfill());
+    }
+
+    private function backfill(): int
     {
         $sentinelHash = AiVisibilityKeywordNormalizer::hash('');
         $updated = 0;

@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Console\Concerns\IteratesTenants;
 use App\Data\Ai\SystemAiIdentity;
 use App\Jobs\DetectAiVisibilityCompetitorsJob;
 use App\Services\GeoFlow\AiVisibility\AiVisibilityCollectionService;
@@ -10,8 +11,11 @@ use Throwable;
 
 class GeoFlowCollectAiVisibilityCommand extends Command
 {
+    use IteratesTenants;
+
     protected $signature = 'geoflow:ai-visibility:collect
-                            {keywords* : One or more keywords to collect}';
+                            {keywords* : One or more keywords to collect}
+                            {--tenant=* : 只处理指定租户，缺省遍历全部租户}';
 
     protected $description = 'Collect AI visibility search and analysis runs with saved provider bindings';
 
@@ -26,6 +30,14 @@ class GeoFlowCollectAiVisibilityCommand extends Command
             return self::FAILURE;
         }
 
+        return $this->runForEachTenant(fn (): int => $this->collect($collection, $keywords));
+    }
+
+    /**
+     * @param  list<string>  $keywords
+     */
+    private function collect(AiVisibilityCollectionService $collection, array $keywords): int
+    {
         $failed = 0;
         $identity = SystemAiIdentity::forVisibilityCollection();
         foreach ($keywords as $keyword) {

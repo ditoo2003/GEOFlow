@@ -9,6 +9,8 @@ use App\Jobs\RecoverUrlChanges;
 use App\Models\KnowledgeFactGenerationRun;
 use App\Services\GeoFlow\ArticleMarkdownExportService;
 use App\Services\GeoFlow\KnowledgeChunkSyncCoordinator;
+use App\Tenancy\TenantContext;
+use App\Tenancy\TenantResolver;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -23,11 +25,19 @@ Artisan::command('inspire', function () {
 Artisan::command(
     'geoflow:recover-knowledge-syncs {--stale=600} {--limit=50}',
     function (KnowledgeChunkSyncCoordinator $coordinator): int {
-        $recovered = $coordinator->recoverStale(
-            SystemAiIdentity::knowledgeIndex(),
-            max(60, (int) $this->option('stale')),
-            max(1, min(200, (int) $this->option('limit'))),
-        );
+        $stale = max(60, (int) $this->option('stale'));
+        $limit = max(1, min(200, (int) $this->option('limit')));
+        $context = app(TenantContext::class);
+        $recovered = 0;
+
+        // 知识分块同步属于租户数据：逐租户恢复，子 job 才会带上正确租户。
+        foreach (app(TenantResolver::class)->tenantIds() as $tenantId) {
+            $recovered += $context->runAs(
+                $tenantId,
+                static fn (): int => $coordinator->recoverStale(SystemAiIdentity::knowledgeIndex(), $stale, $limit),
+            );
+        }
+
         $this->info(sprintf('Recovered stale knowledge syncs: %d', $recovered));
 
         return 0;
@@ -68,33 +78,46 @@ Artisan::command('geoflow:prune-article-exports', function (ArticleMarkdownExpor
 
 Artisan::command('geoflow:prune-knowledge-fact-generations {--limit=200} {--dry-run}', function (): int {
     $cutoff = now()->subDays((int) config('geoflow.knowledge_fact_generation_retention_days', 90));
+    $dryRun = (bool) $this->option('dry-run');
+    $limit = max(1, min(1000, (int) $this->option('limit')));
+    $context = app(TenantContext::class);
     $pruned = 0;
-    KnowledgeFactGenerationRun::query()->whereIn('status', ['completed', 'partial', 'failed', 'cancelled', 'obsolete'])
-        ->whereNull('diagnostic_payload_pruned_at')->where('updated_at', '<', $cutoff)->orderBy('id')
-        ->limit(max(1, min(1000, (int) $this->option('limit'))))->pluck('id')->each(function (int $runId) use (&$pruned): void {
-            DB::transaction(function () use ($runId, &$pruned): void {
-                $run = KnowledgeFactGenerationRun::query()->whereKey($runId)->lockForUpdate()->first();
-                if (! $run || $run->diagnostic_payload_pruned_at !== null || ! in_array($run->status, ['completed', 'partial', 'failed', 'cancelled', 'obsolete'], true)) {
-                    return;
-                }
-                $result = (array) $run->result_json;
-                if ((array) ($result['conflicts'] ?? []) !== []) {
-                    return;
-                }
-                $pruned++;
-                if ((bool) $this->option('dry-run')) {
-                    return;
-                }
-                $summary = ['summary' => ['candidate_count' => count((array) ($result['candidates'] ?? [])), 'batch_count' => count((array) ($result['batches'] ?? []))]];
-                $run->forceFill([
-                    'result_json' => $summary,
-                    'result_hash' => hash('sha256', json_encode($summary, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)),
-                    'batch_meta_json' => null, 'coverage_json' => null, 'usage_json' => null, 'error_message' => null,
-                    'diagnostic_payload_pruned_at' => now(),
-                ])->save();
-            }, 3);
+
+    // 生成诊断数据按租户隔离：逐租户处理，避免跨租户混算或写入错租户。
+    foreach (app(TenantResolver::class)->tenantIds() as $tenantId) {
+        $pruned += $context->runAs($tenantId, function () use ($cutoff, $dryRun, $limit): int {
+            $count = 0;
+            KnowledgeFactGenerationRun::query()->whereIn('status', ['completed', 'partial', 'failed', 'cancelled', 'obsolete'])
+                ->whereNull('diagnostic_payload_pruned_at')->where('updated_at', '<', $cutoff)->orderBy('id')
+                ->limit($limit)->pluck('id')->each(function (int $runId) use (&$count, $dryRun): void {
+                    DB::transaction(function () use ($runId, &$count, $dryRun): void {
+                        $run = KnowledgeFactGenerationRun::query()->whereKey($runId)->lockForUpdate()->first();
+                        if (! $run || $run->diagnostic_payload_pruned_at !== null || ! in_array($run->status, ['completed', 'partial', 'failed', 'cancelled', 'obsolete'], true)) {
+                            return;
+                        }
+                        $result = (array) $run->result_json;
+                        if ((array) ($result['conflicts'] ?? []) !== []) {
+                            return;
+                        }
+                        $count++;
+                        if ($dryRun) {
+                            return;
+                        }
+                        $summary = ['summary' => ['candidate_count' => count((array) ($result['candidates'] ?? [])), 'batch_count' => count((array) ($result['batches'] ?? []))]];
+                        $run->forceFill([
+                            'result_json' => $summary,
+                            'result_hash' => hash('sha256', json_encode($summary, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE)),
+                            'batch_meta_json' => null, 'coverage_json' => null, 'usage_json' => null, 'error_message' => null,
+                            'diagnostic_payload_pruned_at' => now(),
+                        ])->save();
+                    }, 3);
+                });
+
+            return $count;
         });
-    $verb = (bool) $this->option('dry-run') ? 'Eligible' : 'Pruned';
+    }
+
+    $verb = $dryRun ? 'Eligible' : 'Pruned';
     $this->info("{$verb} knowledge fact generation diagnostics: {$pruned}");
 
     return 0;
