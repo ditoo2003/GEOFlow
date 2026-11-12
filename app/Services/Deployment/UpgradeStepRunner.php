@@ -52,9 +52,16 @@ class UpgradeStepRunner
     /** @param list<string> $command */
     protected function createProcess(array $command, float $timeout): Process
     {
-        return new Process([PHP_BINARY, base_path('artisan'), ...$command, '--no-interaction', '--no-ansi'], base_path(), [
-            'VIEW_COMPILED_PATH' => (string) config('view.compiled'),
-        ], null, $timeout);
+        $env = ['VIEW_COMPILED_PATH' => (string) config('view.compiled')];
+
+        // 运行时角色没有 DDL 权限，升级迁移子进程改用配置的高权限账号。
+        $adminUsername = (string) config('tenancy.privileged_connection.username', '');
+        if ($adminUsername !== '') {
+            $env['DB_USERNAME'] = $adminUsername;
+            $env['DB_PASSWORD'] = (string) config('tenancy.privileged_connection.password', '');
+        }
+
+        return new Process([PHP_BINARY, base_path('artisan'), ...$command, '--no-interaction', '--no-ansi'], base_path(), $env, null, $timeout);
     }
 
     /** @return array<string,array<string,mixed>> */

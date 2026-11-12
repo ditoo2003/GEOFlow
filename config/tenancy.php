@@ -28,6 +28,15 @@ return [
         'password' => env('DB_RUNTIME_PASSWORD', ''),
     ],
 
+    /*
+     * 系统升级在队列进程内执行 `artisan migrate` 子进程，需要高权限账号（运行时角色没有 DDL 权限）。
+     * 未配置时子进程继承当前连接账号，不改变单角色部署的原有行为。
+     */
+    'privileged_connection' => [
+        'username' => env('DB_ADMIN_USERNAME'),
+        'password' => env('DB_ADMIN_PASSWORD'),
+    ],
+
     'platform_tables' => [
         'ai_models',
         'prompts',

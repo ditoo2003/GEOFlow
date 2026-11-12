@@ -5,6 +5,8 @@ name: geoflow-laravel
 x-runtime-db-env: &runtime-db-env
   DB_USERNAME: ${DB_RUNTIME_USERNAME:-geoflow_app}
   DB_PASSWORD: ${DB_RUNTIME_PASSWORD:-geoflow_app_password}
+  DB_ADMIN_USERNAME: ${DB_USERNAME:-geo_user}
+  DB_ADMIN_PASSWORD: ${DB_PASSWORD:-geo_password}
 
 services:
   postgres:
