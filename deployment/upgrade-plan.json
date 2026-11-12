@@ -902,6 +902,56 @@
       "name": "2026_10_02_000120_add_topic_review_records",
       "sha256": "8052384dddceda28c692652d3c059c18bccdaf6774986c6d3dbb5c0d478dce7c",
       "online": false
+    },
+    {
+      "name": "2026_11_12_000001_add_observability_columns_to_ai_model_usage_events",
+      "sha256": "e565ddc702d9db0e655f960863572daf9b6f6817acaff519d815a71e65694f5a",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_000002_add_observability_columns_to_ai_model_usage_attempt_starts",
+      "sha256": "23689957097e1adbae72443dcd10a3984f83ab40fa91782ff1fdbc8e9bac1ac4",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_000003_add_capabilities_to_ai_models",
+      "sha256": "8635fd7ed66b705e7ba03346b88d8bdddbba4e9dd6559818cadb8024474c3ddc",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_100000_create_tenants_tables",
+      "sha256": "16d3e467c1953a3f66417579a9e9cfd9dac25683edc8ec4872f3db774c8e5fa0",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_100100_add_tenant_id_to_tenant_tables",
+      "sha256": "a277495130212a0e14bc7b7ba81a81cc3b1a667bdfff05d21ea382e8735437ce",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_100200_apply_tenant_rls_policies",
+      "sha256": "2e254db0de9c7b8059edc6127ce2f05f56ecf5da714bca0a8f108e35c9fca050",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_100300_add_tenant_id_to_ai_quality_and_sync_tables",
+      "sha256": "d679fcb39271d001bec5ca538e9e37061068852a82954563d5d4d30e71cda054",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_100400_exclude_managed_image_paths_from_tenant_isolation",
+      "sha256": "2813a14f49f59d946e88b11b9821e2df64d4d928b4ef0061ffa6101d72afcd1a",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_100500_scope_unique_keys_by_tenant",
+      "sha256": "7dcf669fb7c9bc60b869355bd86373ed03f08d0d5743f7294e74ee396c563fe0",
+      "online": false
+    },
+    {
+      "name": "2026_11_12_100600_create_runtime_database_role",
+      "sha256": "048c1ff46d1d2aeaff88b3fdf74b6a3718e5e87b718b92b8ddca2e45391f62b7",
+      "online": false
     }
   ],
   "compatibility": {
