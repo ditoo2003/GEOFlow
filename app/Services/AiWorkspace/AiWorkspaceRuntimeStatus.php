@@ -3,6 +3,7 @@
 namespace App\Services\AiWorkspace;
 
 use App\Models\SiteSetting;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Schema;
 
 final class AiWorkspaceRuntimeStatus
@@ -45,12 +46,15 @@ final class AiWorkspaceRuntimeStatus
 
     public function save(bool $enabled): void
     {
+        $tenantId = app(TenantContext::class)->tenantIdOrDefault();
+
         SiteSetting::query()->upsert(
             [[
+                'tenant_id' => $tenantId,
                 'setting_key' => self::SETTING_KEY,
                 'setting_value' => $enabled ? '1' : '0',
             ]],
-            ['setting_key'],
+            ['tenant_id', 'setting_key'],
             ['setting_value'],
         );
     }
@@ -63,6 +67,7 @@ final class AiWorkspaceRuntimeStatus
         }
 
         $value = SiteSetting::query()
+            ->where('tenant_id', app(TenantContext::class)->tenantIdOrDefault())
             ->where('setting_key', self::SETTING_KEY)
             ->value('setting_value');
 

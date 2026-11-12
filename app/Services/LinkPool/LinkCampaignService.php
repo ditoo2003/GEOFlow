@@ -6,6 +6,7 @@ use App\Exceptions\DistributionChannelDeletionBlocked;
 use App\Models\DistributionChannel;
 use App\Services\GeoFlow\DistributionChannelOperationLeaseService;
 use App\Services\Site\LinkPoolSiteService;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -26,6 +27,7 @@ final class LinkCampaignService
             return DB::transaction(function () use ($campaignId, $siteKey, $payload, $adminId): int {
                 if ($campaignId === null) {
                     $campaignId = DB::table('link_campaigns')->insertGetId([
+                        'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey),
                         'source_site_key' => $siteKey, 'name' => $payload['name'], 'mode' => $payload['mode'],
                         'priority' => 0, 'limit' => $payload['limit'], 'status' => 'draft',
                         'source_rules_json' => json_encode(['scope' => 'all']), 'exclusions_json' => '[]',
@@ -54,10 +56,13 @@ final class LinkCampaignService
                         },
                     ));
                 }
-                DB::table('link_campaign_drafts')->updateOrInsert(['campaign_id' => $campaignId], [
-                    'base_revision' => $revision, 'payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE),
-                    'updated_by' => $adminId, 'created_at' => now(), 'updated_at' => now(),
-                ]);
+                DB::table('link_campaign_drafts')->updateOrInsert(
+                    ['campaign_id' => $campaignId, 'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey)],
+                    [
+                        'base_revision' => $revision, 'payload_json' => json_encode($payload, JSON_UNESCAPED_UNICODE),
+                        'updated_by' => $adminId, 'created_at' => now(), 'updated_at' => now(),
+                    ]
+                );
 
                 return $campaignId;
             }, 3);
@@ -131,12 +136,16 @@ final class LinkCampaignService
                     ]);
                     DB::table('link_campaign_sources')->where('campaign_id', $campaignId)->delete();
                     foreach ($payload['source_article_ids'] as $id) {
-                        DB::table('link_campaign_sources')->insert(['campaign_id' => $campaignId, 'source_article_id' => $id]);
+                        DB::table('link_campaign_sources')->insert([
+                            'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey),
+                            'campaign_id' => $campaignId, 'source_article_id' => $id,
+                        ]);
                     }
                     DB::table('link_campaign_targets')->where('campaign_id', $campaignId)->delete();
                     foreach ($targetIds as $position => $id) {
                         $cross = ! LinkPoolTargetService::isExternal($targets[$id]) && $targets[$id]->target_site_key !== $siteKey;
                         DB::table('link_campaign_targets')->insert([
+                            'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey),
                             'campaign_id' => $campaignId, 'target_id' => $id,
                             'weight' => $payload['weights'][$id] ?? 1,
                             'pin_order' => in_array($id, $payload['pinned_ids'], true) ? array_search($id, $payload['pinned_ids'], true) + 1 : null,

@@ -6,6 +6,7 @@ use App\Exceptions\DistributionChannelDeletionBlocked;
 use App\Services\GeoFlow\DistributionChannelOperationLeaseService;
 use App\Services\LinkPool\LinkPoolTargetService;
 use App\Support\Analytics\TrafficClassifier;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -28,9 +29,11 @@ final class LinkPoolMetricsService
         $siteKeys = $placements->flatMap(static fn (object $placement): array => [
             $placement->source_site_key, $placement->target_site_key,
         ])->unique()->all();
-        $this->withHostedLeases($siteKeys, 'link_pool_html_served', function () use ($placementIds, $deliveryId): void {
-            DB::transaction(function () use ($placementIds, $deliveryId): void {
+        $this->withHostedLeases($siteKeys, 'link_pool_html_served', function () use ($placementIds, $deliveryId, $placements): void {
+            $tenantId = app(TenantContext::class)->tenantIdForSite((string) $placements->first()->source_site_key);
+            DB::transaction(function () use ($placementIds, $deliveryId, $tenantId): void {
                 if (DB::table('link_pool_html_deliveries')->insertOrIgnore([
+                    'tenant_id' => $tenantId,
                     'id' => $deliveryId, 'created_at' => now(),
                 ]) !== 1) {
                     return;
@@ -92,6 +95,7 @@ final class LinkPoolMetricsService
             return true;
         }
         $inserted = DB::table('link_pool_events')->insertOrIgnore([
+            'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey),
             'event_uuid' => $eventUuid,
             'event_type' => $type,
             'batch_id' => $placement->batch_id,
@@ -155,6 +159,7 @@ final class LinkPoolMetricsService
         }
         $key = hash('sha256', json_encode($data));
         DB::table('link_metrics_daily')->insertOrIgnore([
+            'tenant_id' => app(TenantContext::class)->tenantIdForSite((string) $placement->source_site_key),
             'metric_key' => $key, ...$data, 'target_id' => $placement->target_id,
             'html_served' => 0, 'viewable' => 0, 'human_clicks' => 0,
         ]);

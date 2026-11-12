@@ -6,6 +6,7 @@ use App\Jobs\RefreshLinkPoolBatch;
 use App\Models\Article;
 use App\Services\LinkPool\LinkPoolTargetService;
 use App\Support\Site\LinkPoolThemeValidationContext;
+use App\Tenancy\TenantContext;
 use Illuminate\Bus\UniqueLock;
 use Illuminate\Contracts\Cache\Repository;
 use Illuminate\Support\Carbon;
@@ -329,6 +330,7 @@ final class LinkPoolRecommendationService
             ->pluck('id')->map(static fn ($id): int => (int) $id)->all();
         DB::transaction(function () use ($siteKey, $articleId, $source, $relatedIds, $fingerprint, $settings): void {
             DB::table('link_selection_heads')->insertOrIgnore([
+                'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey),
                 'source_site_key' => $siteKey,
                 'source_article_id' => $articleId,
                 'batch_id' => 0,
@@ -356,6 +358,7 @@ final class LinkPoolRecommendationService
                 return;
             }
             $batchId = DB::table('link_selection_batches')->insertGetId([
+                'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey),
                 'source_site_key' => $siteKey,
                 'source_article_id' => $articleId,
                 'rule_fingerprint' => $fingerprint,
@@ -365,6 +368,7 @@ final class LinkPoolRecommendationService
             ]);
             foreach ($selected as $index => $item) {
                 DB::table('link_placements')->insert([
+                    'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey),
                     'batch_id' => $batchId,
                     'source_site_key' => $siteKey,
                     'source_article_id' => $articleId,

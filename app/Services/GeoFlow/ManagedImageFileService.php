@@ -4,6 +4,7 @@ namespace App\Services\GeoFlow;
 
 use App\Models\Image;
 use App\Models\ManagedImagePath;
+use App\Tenancy\TenantContext;
 use Illuminate\Contracts\Cache\LockTimeoutException;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
@@ -126,6 +127,17 @@ class ManagedImageFileService extends ManagedImagePathHasherV1
      * @return array{processed:int,resolved:int,terminal:int,remaining:int,registry_reconciled:int,registry_failed:int,deletion_enabled:bool,ready:bool}
      */
     public function managedPathHashReadiness(bool $reconcileRegistry = true, bool $readOnly = false): array
+    {
+        // 图片文件登记表是平台级共享资源，读写必须跨租户（与多租户改造前语义一致）。
+        return app(TenantContext::class)->runAsSystem(
+            fn (): array => $this->computeManagedPathHashReadiness($reconcileRegistry, $readOnly)
+        );
+    }
+
+    /**
+     * @return array{processed:int,resolved:int,terminal:int,remaining:int,registry_reconciled:int,registry_failed:int,deletion_enabled:bool,ready:bool}
+     */
+    private function computeManagedPathHashReadiness(bool $reconcileRegistry, bool $readOnly): array
     {
         $processed = 0;
         $resolved = 0;
@@ -661,7 +673,10 @@ class ManagedImageFileService extends ManagedImagePathHasherV1
 
     private function hasPhysicalReference(string $pathHash): bool
     {
-        return Image::query()->where('managed_path_hash', $pathHash)->exists();
+        // 物理文件按内容寻址、跨租户共享，引用检查必须看全平台，否则会误删其它租户仍在用的文件。
+        return app(TenantContext::class)->runAsSystem(
+            static fn (): bool => Image::query()->where('managed_path_hash', $pathHash)->exists()
+        );
     }
 
     /**

@@ -5,6 +5,7 @@ namespace App\Services\LinkPool;
 use App\Exceptions\DistributionChannelDeletionBlocked;
 use App\Services\GeoFlow\DistributionChannelOperationLeaseService;
 use App\Services\Site\LinkPoolSiteService;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -165,6 +166,7 @@ final class LinkPoolImportService
                     ->when($external, fn ($query) => $query->where('url_sha256', $row['url_sha256']),
                         fn ($query) => $query->where('article_id', $row['article_id']));
                 $inserted = DB::table('link_pool_targets')->insertOrIgnore([
+                    'tenant_id' => app(TenantContext::class)->tenantIdForSite((string) $row['site_key']),
                     'target_site_key' => $row['site_key'], 'article_id' => $row['article_id'],
                     ...$values, 'created_by' => $adminId, 'created_at' => now(),
                 ]);
@@ -223,6 +225,7 @@ final class LinkPoolImportService
 
         $batchId = (string) Str::uuid();
         DB::table('link_pool_import_batches')->insert([
+            'tenant_id' => app(TenantContext::class)->tenantIdOrDefault(),
             'id' => $batchId, 'created_by' => $adminId,
             'created_target_ids_json' => json_encode($createdIds),
             'counts_json' => json_encode($counts), 'created_at' => now(),

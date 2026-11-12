@@ -78,6 +78,7 @@ class AdminKnowledgeFactLifecycleTest extends TestCase
         Schema::rename('knowledge_fact_generation_runs', $temporaryTable);
         Schema::create('knowledge_fact_generation_runs', function (Blueprint $table): void {
             $table->id();
+            $table->unsignedBigInteger('tenant_id')->default(1);
             $table->unsignedBigInteger('created_by_admin_id')->nullable();
             $table->string('status');
             $table->boolean('retryable_failure')->default(true);

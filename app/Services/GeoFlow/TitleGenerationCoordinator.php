@@ -1057,10 +1057,10 @@ final class TitleGenerationCoordinator
     private function materializeRunKeywords(int $runId, int $keywordLibraryId): void
     {
         DB::table('title_generation_run_keywords')->insertUsing(
-            ['title_generation_run_id', 'source_keyword_id', 'keyword'],
+            ['tenant_id', 'title_generation_run_id', 'source_keyword_id', 'keyword'],
             DB::table('keywords')
                 ->where('library_id', $keywordLibraryId)
-                ->selectRaw('? as title_generation_run_id, id as source_keyword_id, keyword', [$runId]),
+                ->selectRaw('tenant_id, ? as title_generation_run_id, id as source_keyword_id, keyword', [$runId]),
         );
     }
 

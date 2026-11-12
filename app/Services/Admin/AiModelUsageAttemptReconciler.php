@@ -50,6 +50,7 @@ final class AiModelUsageAttemptReconciler
                     ];
                     ksort($attributes);
                     $reconciled += DB::table('ai_model_usage_events')->insertOrIgnore([
+                        'tenant_id' => $start->tenant_id,
                         'event_uuid' => (string) Str::uuid(),
                         'payload_fingerprint' => hash('sha256', json_encode(
                             $attributes,

@@ -7,8 +7,10 @@ use App\Services\Admin\SiteThemePackageGuard;
 use App\Services\Admin\SiteThemePackageService;
 use App\Support\Site\InstalledSiteThemeRepository;
 use App\Support\Site\SiteThemePackageStorage;
+use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\File;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use RuntimeException;
@@ -635,6 +637,11 @@ class SiteThemePackageServiceTest extends TestCase
         $files['resources/views/theme/'.$id.'/layout.blade.php'] .= "\n@include('site.partials.friend-links')\n";
         $this->createSource($id, $files);
         (require database_path('migrations/2026_04_18_100000_create_geoflow_admins_and_site_settings_tables.php'))->up();
+        if (! Schema::hasColumn('site_settings', 'tenant_id')) {
+            Schema::table('site_settings', function (Blueprint $table): void {
+                $table->unsignedBigInteger('tenant_id')->nullable();
+            });
+        }
         SiteSetting::query()->create(['setting_key' => 'friend_links', 'setting_value' => 'PRIVATE-FRIEND-LIST-SENTINEL']);
         $service = app(SiteThemePackageService::class);
         $export = $service->export($id, 9);

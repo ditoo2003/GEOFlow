@@ -7,6 +7,7 @@ use App\Models\HostedSiteProfile;
 use App\Models\SiteSetting;
 use App\Support\Site\CurrentSite;
 use App\Support\Site\SiteSettingsBag;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Validator;
@@ -73,7 +74,13 @@ final class TopicSiteSettings
 
     public function recordOpened(string $siteKey): void
     {
-        SiteSetting::query()->insertOrIgnore(['setting_key' => 'topics_public_opened_at:'.$siteKey, 'setting_value' => now()->toIso8601String(), 'created_at' => now(), 'updated_at' => now()]);
+        SiteSetting::query()->insertOrIgnore([
+            'tenant_id' => app(TenantContext::class)->tenantIdOrDefault(),
+            'setting_key' => 'topics_public_opened_at:'.$siteKey,
+            'setting_value' => now()->toIso8601String(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
     }
 
     private function profile(string $siteKey): HostedSiteProfile

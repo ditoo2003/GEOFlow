@@ -21,6 +21,7 @@ use App\Services\Site\LinkPoolSiteService;
 use App\Support\AdminWeb;
 use App\Support\Analytics\TrafficClassifier;
 use App\Support\Site\SiteThemeCatalog;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -519,12 +520,18 @@ final class LinkPoolController extends Controller
             throw ValidationException::withMessages(['enabled' => '当前文章主题尚未接入推荐内容模板，请完成主题适配后再开启。']);
         }
         if ($siteKey === 'primary') {
-            DB::transaction(function () use ($data, $settings): void {
+            $tenantId = app(TenantContext::class)->tenantIdForSite($siteKey);
+            DB::transaction(function () use ($data, $settings, $tenantId): void {
                 DB::table('site_settings')->insertOrIgnore([
+                    'tenant_id' => $tenantId,
                     'setting_key' => 'article_recommendations', 'setting_value' => '{}',
                     'created_at' => now(), 'updated_at' => now(),
                 ]);
-                $row = DB::table('site_settings')->where('setting_key', 'article_recommendations')->lockForUpdate()->first();
+                $row = DB::table('site_settings')
+                    ->where('tenant_id', $tenantId)
+                    ->where('setting_key', 'article_recommendations')
+                    ->lockForUpdate()
+                    ->first();
                 $current = json_decode((string) $row->setting_value, true) ?: [];
                 if ((int) ($current['revision'] ?? 0) !== (int) $data['revision']) {
                     throw ValidationException::withMessages(['revision' => '站点设置已更新，请重新载入后保存。']);

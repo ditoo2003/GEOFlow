@@ -30,6 +30,7 @@ use App\Support\GeoFlow\AiExecutionErrorSanitizer;
 use App\Support\GeoFlow\AiModelFailoverDecider;
 use App\Support\GeoFlow\ApiKeyCrypto;
 use App\Support\GeoFlow\OpenAiRuntimeProvider;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\Client\Factory;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\DB;
@@ -216,7 +217,7 @@ class KnowledgeChunkSyncService
                 $knowledgeBase = KnowledgeBase::query()
                     ->whereKey($knowledgeBaseId)
                     ->lockForUpdate()
-                    ->first(['id', 'content', 'chunk_sync_token', 'chunk_sync_status', 'chunk_source_hash']);
+                    ->first(['id', 'tenant_id', 'content', 'chunk_sync_token', 'chunk_sync_status', 'chunk_source_hash']);
                 if (! $knowledgeBase
                     || ! hash_equals((string) $knowledgeBase->chunk_sync_token, $syncToken)
                     || ! in_array((string) $knowledgeBase->chunk_sync_status, ['pending', 'processing'], true)
@@ -246,6 +247,7 @@ class KnowledgeChunkSyncService
                     $chunkContent = (string) ($chunk['content'] ?? '');
                     $fallbackVector = $this->buildFallbackVector($chunkContent, 256);
                     $rows[] = [
+                        'tenant_id' => $knowledgeBase->tenant_id,
                         'knowledge_base_id' => $knowledgeBaseId,
                         'sync_token' => $syncToken,
                         'chunk_index' => $index,
@@ -421,7 +423,7 @@ class KnowledgeChunkSyncService
                 $knowledgeBase = KnowledgeBase::query()
                     ->whereKey($knowledgeBaseId)
                     ->lockForUpdate()
-                    ->first(['id', 'content', 'chunk_sync_token', 'chunk_sync_status', 'chunk_source_hash']);
+                    ->first(['id', 'tenant_id', 'content', 'chunk_sync_token', 'chunk_sync_status', 'chunk_source_hash']);
                 if (! $knowledgeBase
                     || ! hash_equals((string) $knowledgeBase->chunk_sync_token, $syncToken)
                     || ! in_array((string) $knowledgeBase->chunk_sync_status, ['pending', 'processing'], true)
@@ -533,10 +535,13 @@ class KnowledgeChunkSyncService
 
             (clone $stagedQuery)
                 ->orderBy('id')
-                ->chunkById(100, function ($rows) use ($syncToken): void {
+                ->chunkById(100, function ($rows) use ($syncToken, $knowledgeBase): void {
                     $inserts = [];
                     foreach ($rows as $row) {
                         $inserts[] = [
+                            'tenant_id' => $knowledgeBase->tenant_id !== null
+                                ? (int) $knowledgeBase->tenant_id
+                                : app(TenantContext::class)->tenantIdOrDefault(),
                             'knowledge_base_id' => (int) $row->knowledge_base_id,
                             'generation_key' => $syncToken,
                             'chunk_index' => (int) $row->chunk_index,

@@ -365,6 +365,7 @@ final class TopicFreshnessService
             $changed = $locked->freshness_revision_id !== $revision->id || $locked->freshness_status !== $state['freshness_status'];
             if ($changed) {
                 DB::table('topic_freshness_changes')->insert([
+                    'tenant_id' => $locked->tenant_id,
                     'topic_id' => $locked->id, 'topic_revision_id' => $revision->id,
                     'previous_status' => $locked->freshness_status, 'status' => $state['freshness_status'],
                     'event_hint' => $state['event_hint'], 'coverage_note' => $state['coverage_note'],

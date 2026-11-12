@@ -7,6 +7,7 @@ use App\Models\Admin;
 use App\Models\SensitiveWord;
 use App\Services\GeoFlow\ArticleRiskScanner;
 use App\Support\AdminWeb;
+use App\Tenancy\TenantContext;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -97,6 +98,7 @@ class SecuritySettingsController extends Controller
                     $wordsToInsert = $submittedWords
                         ->reject(static fn (string $word): bool => in_array($word, $existingWords, true))
                         ->map(static fn (string $word): array => [
+                            'tenant_id' => app(TenantContext::class)->tenantId(),
                             'word' => $word,
                             'severity' => (string) ($payload['severity'] ?? 'warning'),
                             'category' => trim((string) ($payload['category'] ?? '')) ?: 'sensitive',

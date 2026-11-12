@@ -2,6 +2,7 @@
 
 namespace App\Services\Site;
 
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 
 final class UrlChangeVersions
@@ -10,11 +11,22 @@ final class UrlChangeVersions
     public function snapshot(array $scopes, bool $lock = false): array
     {
         sort($scopes, SORT_STRING);
-        $existing = DB::table('url_change_scope_states')->whereIn('scope_key', $scopes)->pluck('scope_key')->all();
+        $tenantId = app(TenantContext::class)->tenantIdOrDefault();
+        $existing = DB::table('url_change_scope_states')
+            ->where('tenant_id', $tenantId)
+            ->whereIn('scope_key', $scopes)
+            ->pluck('scope_key')
+            ->all();
         foreach (array_diff(array_unique($scopes), $existing) as $scope) {
-            DB::table('url_change_scope_states')->insertOrIgnore(['scope_key' => $scope]);
+            DB::table('url_change_scope_states')->insertOrIgnore([
+                'tenant_id' => $tenantId,
+                'scope_key' => $scope,
+            ]);
         }
-        $query = DB::table('url_change_scope_states')->whereIn('scope_key', $scopes)->orderBy('scope_key');
+        $query = DB::table('url_change_scope_states')
+            ->where('tenant_id', $tenantId)
+            ->whereIn('scope_key', $scopes)
+            ->orderBy('scope_key');
         if ($lock) {
             $query->lockForUpdate();
         }
@@ -26,8 +38,11 @@ final class UrlChangeVersions
     public function advance(array $scopes): void
     {
         $this->snapshot($scopes, true);
-        DB::table('url_change_scope_states')->whereIn('scope_key', $scopes)->update([
-            'data_revision' => DB::raw('data_revision + 1'), 'url_changed_at' => now(),
-        ]);
+        DB::table('url_change_scope_states')
+            ->where('tenant_id', app(TenantContext::class)->tenantIdOrDefault())
+            ->whereIn('scope_key', $scopes)
+            ->update([
+                'data_revision' => DB::raw('data_revision + 1'), 'url_changed_at' => now(),
+            ]);
     }
 }

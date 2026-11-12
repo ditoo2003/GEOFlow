@@ -3,6 +3,7 @@
 namespace App\Support\Site;
 
 use App\Models\SiteSetting;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Schema;
 
@@ -39,7 +40,7 @@ final class SiteSettingsBag
             return [];
         }
 
-        $cached = Cache::remember(self::CACHE_KEY, self::CACHE_TTL_SECONDS, static function (): array {
+        $cached = Cache::remember(self::primaryCacheKey(), self::CACHE_TTL_SECONDS, static function (): array {
             /** @var array<string, string> $map */
             $map = SiteSetting::query()
                 ->pluck('setting_value', 'setting_key')
@@ -142,8 +143,19 @@ final class SiteSettingsBag
      */
     public static function forget(): void
     {
-        Cache::forget(self::CACHE_KEY);
+        Cache::forget(self::primaryCacheKey());
         self::$localRevision++;
+    }
+
+    private static function primaryCacheKey(): string
+    {
+        if (! app()->bound(TenantContext::class)) {
+            return self::CACHE_KEY;
+        }
+
+        $tenantId = app(TenantContext::class)->tenantId();
+
+        return self::CACHE_KEY.'.'.($tenantId ?? 'system');
     }
 
     public static function localRevision(): int

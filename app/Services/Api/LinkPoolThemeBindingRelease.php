@@ -17,6 +17,7 @@ use App\Services\Site\LinkPoolSiteService;
 use App\Support\Site\InstalledSiteThemeRepository;
 use App\Support\Site\SiteSettingsBag;
 use App\Support\Site\SiteThemeCatalog;
+use App\Tenancy\TenantContext;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
@@ -315,7 +316,13 @@ final class LinkPoolThemeBindingRelease
             if ($selected !== $candidate->theme_id) {
                 throw new ApiException('theme_changed', '站点主题已更新，请重新适配', 409);
             }
-            SiteSetting::query()->insertOrIgnore(['setting_key' => 'article_recommendations', 'setting_value' => '{}', 'created_at' => now(), 'updated_at' => now()]);
+            SiteSetting::query()->insertOrIgnore([
+                'tenant_id' => app(TenantContext::class)->tenantIdOrDefault(),
+                'setting_key' => 'article_recommendations',
+                'setting_value' => '{}',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
             $setting = SiteSetting::query()->where('setting_key', 'article_recommendations')->lockForUpdate()->firstOrFail();
             $current = json_decode((string) $setting->setting_value, true) ?: [];
             $this->assertSettingsVersion((int) ($current['revision'] ?? 0), $proof);

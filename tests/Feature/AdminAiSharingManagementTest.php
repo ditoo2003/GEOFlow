@@ -168,6 +168,7 @@ class AdminAiSharingManagementTest extends TestCase
         Schema::rename('title_generation_runs', $temporaryTable);
         Schema::create('title_generation_runs', function (Blueprint $table): void {
             $table->id();
+            $table->unsignedBigInteger('tenant_id')->default(1);
             $table->string('status');
         });
         DB::flushQueryLog();
@@ -196,6 +197,7 @@ class AdminAiSharingManagementTest extends TestCase
         Schema::rename('title_generation_runs', $temporaryTable);
         Schema::create('title_generation_runs', function (Blueprint $table): void {
             $table->id();
+            $table->unsignedBigInteger('tenant_id')->default(1);
             $table->unsignedBigInteger('created_by_admin_id')->nullable();
             $table->string('status');
         });

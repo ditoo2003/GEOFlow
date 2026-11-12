@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Services\Topics\TopicReadModel;
 use App\Services\Topics\TopicViewBuilder;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Support\Facades\Schema;
@@ -59,7 +60,11 @@ class TopicSourceInvalidation extends Model
 
     public static function record(int $topicId, string $basisKey, int $articleId, string $reason, ?int $revisionId = null): void
     {
+        $tenantId = Topic::query()->useWritePdo()->whereKey($topicId)->value('tenant_id')
+            ?? app(TenantContext::class)->tenantIdOrDefault();
+
         static::query()->insertOrIgnore([
+            'tenant_id' => $tenantId,
             'topic_id' => $topicId, 'topic_revision_id' => $revisionId, 'basis_key' => $basisKey, 'article_id' => $articleId,
             'reason' => $reason, 'invalidated_at' => now(),
         ]);

@@ -3,6 +3,7 @@
 namespace App\Services\LinkPool;
 
 use App\Services\Site\LinkPoolSiteService;
+use App\Tenancy\TenantContext;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -18,7 +19,10 @@ final class LinkPoolTargetService
 
     public function libraryRevision(): int
     {
-        return (int) DB::table('site_settings')->where('setting_key', 'link_pool_library_revision')->value('setting_value');
+        return (int) DB::table('site_settings')
+            ->where('tenant_id', app(TenantContext::class)->tenantIdOrDefault())
+            ->where('setting_key', 'link_pool_library_revision')
+            ->value('setting_value');
     }
 
     /** @param array<string,mixed> $values */
@@ -36,11 +40,18 @@ final class LinkPoolTargetService
     /** Called inside the same transaction as the target mutation. */
     public function advanceLibraryRevision(): void
     {
+        $tenantId = app(TenantContext::class)->tenantIdOrDefault();
+
         DB::table('site_settings')->insertOrIgnore([
+            'tenant_id' => $tenantId,
             'setting_key' => 'link_pool_library_revision', 'setting_value' => '0',
             'created_at' => now(), 'updated_at' => now(),
         ]);
-        $row = DB::table('site_settings')->where('setting_key', 'link_pool_library_revision')->lockForUpdate()->first();
+        $row = DB::table('site_settings')
+            ->where('tenant_id', $tenantId)
+            ->where('setting_key', 'link_pool_library_revision')
+            ->lockForUpdate()
+            ->first();
         DB::table('site_settings')->where('id', $row->id)->update([
             'setting_value' => (string) ((int) $row->setting_value + 1), 'updated_at' => now(),
         ]);

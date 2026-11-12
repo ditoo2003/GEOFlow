@@ -320,7 +320,7 @@ class FriendLinkSettingsTest extends TestCase
         SiteSettingsBag::forget();
         $staleSettings = SiteSettingsBag::all();
         $this->submit([$this->link(['name' => 'New name'])])->assertSessionHasNoErrors();
-        Cache::put('geoflow.site_settings.public_map', $staleSettings, 60);
+        Cache::put('geoflow.site_settings.public_map.'.app(\App\Tenancy\TenantContext::class)->tenantId(), $staleSettings, 60);
         $this->assertStringContainsString('Old name', SiteSettingsBag::all()['friend_links']);
         $queries = [];
         DB::listen(function ($query) use (&$queries) {

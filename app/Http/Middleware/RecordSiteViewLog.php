@@ -6,6 +6,7 @@ use App\Services\Site\SiteScopedArticleQuery;
 use App\Services\SystemUpdater\RecoveryState;
 use App\Support\Site\CurrentSite;
 use App\Support\Site\SiteThemePreviewContext;
+use App\Tenancy\TenantContext;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -45,7 +46,12 @@ class RecordSiteViewLog
         }
 
         try {
+            $siteKey = $this->currentSite->isHosted()
+                ? 'hosted:'.$this->currentSite->profileId()
+                : 'primary';
+
             DB::table('view_logs')->insert([
+                'tenant_id' => app(TenantContext::class)->tenantIdForSite($siteKey),
                 'article_id' => $this->resolveArticleId($request, $response),
                 'hosted_site_profile_id' => $this->currentSite->profileId(),
                 'source' => $this->currentSite->isHosted() ? 'hosted_site' : 'local',
