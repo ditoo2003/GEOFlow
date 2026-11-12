@@ -3,6 +3,7 @@
 namespace App\Tenancy;
 
 use Closure;
+use Illuminate\Database\ConnectionInterface;
 use Illuminate\Support\Facades\DB;
 use Throwable;
 
@@ -196,16 +197,45 @@ final class TenantContext
                 return;
             }
 
-            $connection->statement(
-                "select set_config('".self::SESSION_VARIABLE."', ?, false)",
-                [$tenantId]
-            );
-            $connection->statement(
-                "select set_config('".self::SESSION_BYPASS_VARIABLE."', ?, false)",
-                [$bypass ? 'on' : 'off']
-            );
+            $this->writeSessionVariables($connection, $tenantId, $bypass);
         } catch (Throwable) {
             // 数据库尚未就绪（如迁移早期/配置缺失）时不影响上下文状态本身。
         }
+    }
+
+    /**
+     * 把当前上下文重新写入指定连接的会话变量（连接重连、事务回滚后恢复用）。
+     */
+    public function syncSessionVariables(ConnectionInterface $connection): void
+    {
+        try {
+            if ($connection->getDriverName() !== 'pgsql') {
+                return;
+            }
+
+            $tenantId = $this->resolved && ! $this->system && $this->tenantId !== null
+                ? (string) $this->tenantId
+                : '';
+
+            $this->writeSessionVariables(
+                $connection,
+                $tenantId,
+                $this->resolved && $this->system
+            );
+        } catch (Throwable) {
+            // 会话变量恢复失败不应掩盖原始异常（如连接断开、事务回滚）。
+        }
+    }
+
+    private function writeSessionVariables(ConnectionInterface $connection, string $tenantId, bool $bypass): void
+    {
+        $connection->statement(
+            "select set_config('".self::SESSION_VARIABLE."', ?, false)",
+            [$tenantId]
+        );
+        $connection->statement(
+            "select set_config('".self::SESSION_BYPASS_VARIABLE."', ?, false)",
+            [$bypass ? 'on' : 'off']
+        );
     }
 }

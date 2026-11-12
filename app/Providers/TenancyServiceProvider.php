@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Database\TenantAwarePostgresConnection;
 use App\Tenancy\TenantContext;
 use App\Tenancy\TenantContextMissingException;
 use App\Tenancy\TenantModelRegistry;
@@ -14,6 +15,7 @@ use Illuminate\Queue\Events\JobFailed;
 use Illuminate\Queue\Events\JobProcessed;
 use Illuminate\Queue\Events\JobProcessing;
 use Illuminate\Queue\Queue as BaseQueue;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\ServiceProvider;
@@ -27,6 +29,14 @@ class TenancyServiceProvider extends ServiceProvider
     {
         $this->app->singleton(TenantContext::class);
         $this->app->singleton(TenantResolver::class);
+
+        // PostgreSQL 连接断开重连后需要重新写入租户会话变量，否则 RLS 会按"未设置上下文"处理。
+        DB::resolverFor('pgsql', static fn ($connection, $database, $prefix, $config) => new TenantAwarePostgresConnection(
+            $connection,
+            $database,
+            $prefix,
+            $config
+        ));
     }
 
     public function boot(): void
