@@ -20,6 +20,7 @@ use App\Models\TaskRun;
 use App\Models\TaskSchedule;
 use App\Models\TitleLibrary;
 use App\Services\Admin\AdminAiModelAccessResolver;
+use App\Services\Billing\TenantQuotaService;
 use App\Services\GeoFlow\Distribution\PlatformWeb\PlatformWebDistributionBridge;
 use App\Services\HostedSites\HostedSiteAllocationRequestService;
 use App\Services\Topics\TopicTaskService;
@@ -195,6 +196,8 @@ class TaskLifecycleService
         ?int $apiTokenId = null,
         ?Admin $responseViewer = null,
     ): array {
+        app(TenantQuotaService::class)->assertCanStartGeneration();
+
         $accessAdmin = $this->accessAdmin($auditAdminId);
         if (($data['content_type'] ?? 'article') === 'topic') {
             $actor = $accessAdmin ?? $responseViewer;
@@ -1063,6 +1066,7 @@ class TaskLifecycleService
         ?Admin $responseViewer = null,
     ): array {
         $this->ensureTaskExists($taskId);
+        app(TenantQuotaService::class)->assertCanStartGeneration($this->quotaTargetTenantId($taskId));
         $jobId = DB::transaction(function () use ($taskId, $enqueueNow, $canManageHostedTask, $operator): ?int {
             $task = Task::query()
                 ->whereKey($taskId)
@@ -1164,6 +1168,8 @@ class TaskLifecycleService
         bool $canManageHostedTask = false,
         Admin|int|null $operator = null,
     ): array {
+        app(TenantQuotaService::class)->assertCanStartGeneration($this->quotaTargetTenantId($taskId));
+
         $jobId = DB::transaction(function () use ($taskId, $jobType, $payload, $canManageHostedTask, $operator): ?int {
             $task = Task::query()
                 ->whereKey($taskId)
@@ -1896,6 +1902,14 @@ class TaskLifecycleService
         if (! Task::query()->whereKey($taskId)->exists()) {
             throw new ApiException('task_not_found', '任务不存在', 404);
         }
+    }
+
+    /** 已有任务的租户归属是显式事实：平台超管 / API Token 用它做配额判定，不回落默认租户。 */
+    private function quotaTargetTenantId(int $taskId): ?int
+    {
+        $tenantId = Task::query()->whereKey($taskId)->value('tenant_id');
+
+        return is_numeric($tenantId) ? (int) $tenantId : null;
     }
 
     private function broadcastOverviewAfterCommit(): void

@@ -13,6 +13,7 @@ use App\Models\HostedSiteArticleAssignment;
 use App\Models\HostedSiteProfile;
 use App\Models\SiteSetting;
 use App\Models\Task;
+use App\Support\AdminTenantContext;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
@@ -61,6 +62,9 @@ class AdminHostedSiteManagementTest extends TestCase
             SiteSetting::query()->create(['setting_key' => $key, 'setting_value' => $value]);
         }
         Cache::flush();
+
+        // 站点写入必须归属显式租户：超管在平台上下文创建站点前需先选择租户。
+        session([AdminTenantContext::SESSION_KEY => (int) config('tenancy.default_tenant_id', 1)]);
 
         $response = $this->actingAs($this->admin(), 'admin')->post(
             route('admin.distribution.hosted-sites.store'),

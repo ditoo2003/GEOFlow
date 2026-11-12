@@ -9,6 +9,7 @@ use App\Models\HostedSiteAllocationRequest;
 use App\Models\HostedSiteArticleAssignment;
 use App\Models\HostedSiteProfile;
 use App\Models\Task;
+use App\Services\Billing\TenantQuotaService;
 use App\Services\GeoFlow\ArticlePublicationEligibilityService;
 use App\Services\GeoFlow\ArticlePublicationQualityGate;
 use App\Services\GeoFlow\DistributionOrchestrator;
@@ -28,6 +29,7 @@ final class HostedSiteLifecycleService
         private readonly HostedSiteResolver $resolver,
         private readonly SiteThemeCatalog $themes,
         private readonly HostedSiteQualityService $quality,
+        private readonly TenantQuotaService $quota,
     ) {}
 
     /** @param array<string,mixed> $payload */
@@ -36,6 +38,8 @@ final class HostedSiteLifecycleService
         $hostname = (string) $payload['hostname'];
         $rootDomain = $this->resolver->rootDomainFor($hostname)
             ?? throw new DomainException('Hosted root domain is not configured.');
+
+        $this->quota->assertCanCreateSite();
 
         $channel = DB::transaction(function () use ($payload, $hostname, $rootDomain, $adminId): DistributionChannel {
             $channel = DistributionChannel::query()->create([
