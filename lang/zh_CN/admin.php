@@ -2588,6 +2588,8 @@ return [
             'capability_embedding_requires_embedding' => 'Embedding 能力只能用于 Embedding 类型的模型。',
             'protocol_model_type_conflict' => '所选调用协议与模型类型不匹配，请调整协议或模型类型。',
             'protocol_embedding_vs_multimodal' => '多模态 Embedding 不能使用普通 Embeddings 协议，请改为多模态协议或让系统自动推荐。',
+            'timeout_profile_incomplete' => '自定义超时的 connect / read / total 必须三项一起填写，或全部留空。',
+            'timeout_profile_unordered' => '自定义超时需满足 connect ≤ read ≤ total。',
         ],
         'message' => [
             'create_success' => 'AI模型创建成功',
@@ -4433,6 +4435,7 @@ return [
             'name_required' => '请填写项目名称。',
             'files_limit' => '最多上传 10 个文件。',
             'ai_empty' => 'AI 返回内容为空。',
+            'ai_budget_exhausted' => 'AI 生成已用完本次任务的时间预算，请稍后重试或缩短来源材料。',
             'ai_incomplete' => 'AI 输出缺少必要结构化章节：:sections。',
             'ai_noise' => 'AI 输出包含来源编号或处理噪音：:items。',
             'create_failed' => '创建失败：:message',

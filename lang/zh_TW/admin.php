@@ -2577,6 +2577,8 @@ return [
             'capability_embedding_requires_embedding' => 'Embedding 能力只能用於 Embedding 類型的模型。',
             'protocol_model_type_conflict' => '所選呼叫協定與模型類型不匹配，請調整協定或模型類型。',
             'protocol_embedding_vs_multimodal' => '多模態 Embedding 不能使用一般 Embeddings 協定，請改為多模態協定或讓系統自動推薦。',
+            'timeout_profile_incomplete' => '自訂逾時的 connect / read / total 必須三項一起填寫，或全部留空。',
+            'timeout_profile_unordered' => '自訂逾時需滿足 connect ≤ read ≤ total。',
         ],
         'message' => [
             'create_success' => 'AI模型建立成功',
@@ -4389,6 +4391,7 @@ return [
             'name_required' => '請填寫專案名稱。',
             'files_limit' => '最多上傳 10 個檔案。',
             'ai_empty' => 'AI 返回內容為空。',
+            'ai_budget_exhausted' => 'AI 生成已用完本次任務的時間預算，請稍後重試或縮短來源材料。',
             'ai_incomplete' => 'AI 輸出缺少必要結構化章節：:sections。',
             'ai_noise' => 'AI 輸出包含來源編號或處理噪音：:items。',
             'create_failed' => '建立失敗：:message',

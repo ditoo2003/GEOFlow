@@ -3471,6 +3471,8 @@ return array_replace_recursive($base, [
             'capability_embedding_requires_embedding' => 'A capacidade Embedding só é válida para modelos do tipo embedding.',
             'protocol_model_type_conflict' => 'O protocolo selecionado não corresponde ao tipo de modelo. Ajuste o protocolo ou o tipo.',
             'protocol_embedding_vs_multimodal' => 'O embedding multimodal não pode usar o protocolo de embeddings padrão. Use o protocolo multimodal ou deixe o sistema recomendar.',
+            'timeout_profile_incomplete' => 'Preencha os três campos de tempo limite (connect / read / total) ou deixe todos vazios.',
+            'timeout_profile_unordered' => 'Os tempos limite devem obedecer connect ≤ read ≤ total.',
         ],
         'message' => [
             'create_success' => 'Modelo criado com sucesso',
@@ -4127,6 +4129,7 @@ return array_replace_recursive($base, [
             'name_required' => 'Informe um nome de projeto.',
             'files_limit' => 'Você pode enviar no máximo 10 arquivos.',
             'ai_empty' => 'A resposta da IA veio vazia.',
+            'ai_budget_exhausted' => 'A geração por IA esgotou o orçamento de tempo desta tarefa. Tente novamente mais tarde ou reduza o material de origem.',
             'ai_incomplete' => 'A resposta da IA não contém seções estruturadas obrigatórias: :sections.',
             'ai_noise' => 'A resposta da IA contém numeração de fontes ou ruído de processamento: :items.',
             'create_failed' => 'Falha ao criar: :message',

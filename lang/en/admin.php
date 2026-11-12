@@ -2540,6 +2540,8 @@ return [
             'capability_embedding_requires_embedding' => 'The Embedding capability is only valid for embedding-type models.',
             'protocol_model_type_conflict' => 'The selected protocol does not match the model type. Adjust the protocol or the model type.',
             'protocol_embedding_vs_multimodal' => 'Multimodal embedding cannot use the standard embeddings protocol. Switch to the multimodal protocol or let the system recommend it.',
+            'timeout_profile_incomplete' => 'Fill all three custom timeout fields (connect / read / total) or leave them all empty.',
+            'timeout_profile_unordered' => 'Custom timeouts must satisfy connect ≤ read ≤ total.',
         ],
         'message' => [
             'create_success' => 'AI model created successfully',
@@ -4373,6 +4375,7 @@ return [
             'name_required' => 'Please enter a project name.',
             'files_limit' => 'You can upload at most 10 files.',
             'ai_empty' => 'The AI response was empty.',
+            'ai_budget_exhausted' => 'AI generation has used up this job\'s time budget. Try again later or shorten the source material.',
             'ai_incomplete' => 'The AI response is missing required structured sections: :sections.',
             'ai_noise' => 'The AI response contains source numbering or processing noise: :items.',
             'create_failed' => 'Create failed: :message',
