@@ -17,6 +17,7 @@ use App\Http\Controllers\Admin\AiPromptTestController;
 use App\Http\Controllers\Admin\AiSourceProviderController;
 use App\Http\Controllers\Admin\AiSpecialPromptController;
 use App\Http\Controllers\Admin\AiVisibilityAnalyticsController;
+use App\Http\Controllers\Admin\AiVisibilityEngineReportController;
 use App\Http\Controllers\Admin\AiWorkspaceApiController;
 use App\Http\Controllers\Admin\AiWorkspaceController;
 use App\Http\Controllers\Admin\AiWorkspaceKnowledgeMediaController;
@@ -253,6 +254,12 @@ Route::prefix($adminPrefix)->name('admin.')->middleware(['admin.locale'])->group
                 ->name('ai-visibility.competitors.destroy');
             Route::post('ai-visibility/search', [AiVisibilityAnalyticsController::class, 'search'])->middleware(['admin.super', 'throttle:admin-sensitive'])->name('ai-visibility.search');
             Route::post('ai-visibility/assign-topic', [AiVisibilityAnalyticsController::class, 'assignTopic'])->middleware(['admin.super', 'throttle:admin-sensitive'])->name('ai-visibility.assign-topic');
+            Route::get('ai-visibility/engines', AiVisibilityEngineReportController::class)
+                ->middleware('admin.super')
+                ->name('ai-visibility.engines');
+            Route::get('ai-visibility/engines/report', [AiVisibilityEngineReportController::class, 'report'])
+                ->middleware('admin.super')
+                ->name('ai-visibility.engines.report');
             Route::get('leads', LeadAnalyticsController::class)->name('leads');
             Route::get('distribution', DistributionAnalyticsController::class)
                 ->middleware('admin.super')
