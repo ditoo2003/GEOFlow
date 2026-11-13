@@ -139,7 +139,71 @@ class VisibilityEngineSampleServiceTest extends TestCase
             'domain' => 'example.com',
         ]);
 
-        Http::assertSent(fn ($request): bool => ($request['tools'][0]['function']['name'] ?? null) === '$web_search');
+        Http::assertSent(fn ($request): bool => ($request['tools'][0]['function']['name'] ?? null) === '$web_search'
+            && ($request['max_completion_tokens'] ?? null) > 0
+            && ! array_key_exists('temperature', $request->data()));
+    }
+
+    public function test_kimi_builtin_search_completes_the_tool_round_trip_before_answering(): void
+    {
+        Http::preventStrayRequests();
+        Http::fake([
+            'https://api.moonshot.cn/v1/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [[
+                        'finish_reason' => 'tool_calls',
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => '',
+                            'tool_calls' => [[
+                                'id' => 't-web_search-1',
+                                'type' => 'builtin_function',
+                                'function' => [
+                                    'name' => '$web_search',
+                                    'arguments' => '{"search_result":{"search_id":"s1"},"usage":{"total_tokens":900}}',
+                                ],
+                            ]],
+                        ],
+                    ]],
+                    'usage' => ['prompt_tokens' => 20, 'completion_tokens' => 5, 'total_tokens' => 25],
+                ])
+                ->push([
+                    'choices' => [[
+                        'finish_reason' => 'stop',
+                        'message' => [
+                            'content' => 'Kimi 联网回答',
+                            'annotations' => [[
+                                'type' => 'url_citation',
+                                'url' => 'https://example.com/kimi-web',
+                                'title' => 'Kimi Web',
+                            ]],
+                        ],
+                    ]],
+                    'usage' => ['prompt_tokens' => 900, 'completion_tokens' => 60, 'total_tokens' => 960],
+                ]),
+        ]);
+
+        $this->bindEngineModel('kimi', 'https://api.moonshot.cn/v1', 'kimi-k2-0905-preview');
+
+        $run = $this->collect('kimi', 'AI 搜索');
+
+        $this->assertSame('Kimi 联网回答', $run->answer_text);
+        $this->assertSame(1, $run->sources()->count());
+        $this->assertSame(
+            ['prompt_tokens' => 920, 'completion_tokens' => 65, 'total_tokens' => 985],
+            $run->usage_json,
+        );
+        $this->assertCount(2, (array) ($run->raw_response_json['rounds'] ?? []));
+
+        Http::assertSent(function ($request): bool {
+            $tool = collect((array) $request['messages'])->first(
+                static fn ($message): bool => is_array($message) && ($message['role'] ?? null) === 'tool',
+            );
+
+            return is_array($tool)
+                && ($tool['tool_call_id'] ?? null) === 't-web_search-1'
+                && str_contains((string) ($tool['content'] ?? ''), 'search_id');
+        });
     }
 
     public function test_perplexity_rejects_offline_sampling_instead_of_mislabelling(): void
