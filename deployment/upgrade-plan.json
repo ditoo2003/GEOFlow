@@ -957,6 +957,21 @@
       "name": "2026_11_13_100000_create_tenant_usage_tables",
       "sha256": "c8258b26a29faf327bc75bdf769b378d056ebb226db337a31ca8feda6060de1e",
       "online": false
+    },
+    {
+      "name": "2026_11_13_110000_create_tenant_quota_periods",
+      "sha256": "3b5082d6b5bd31d63bb38ccb55ee48a4f09eec0d2cc1bbbca8c592b62e2a4114",
+      "online": false
+    },
+    {
+      "name": "2026_11_13_120000_create_registration_tables",
+      "sha256": "941b747ca8697973099ba8e584eb7f259d72f300196f572654a22a6afe8f726f",
+      "online": false
+    },
+    {
+      "name": "2026_11_13_130000_scope_system_knowledge_bases_primary_key_by_tenant",
+      "sha256": "40800654a156ec04ffbebf1a7ba95a98285232eec32c7e800f2c0bdd36647c0a",
+      "online": false
     }
   ],
   "compatibility": {

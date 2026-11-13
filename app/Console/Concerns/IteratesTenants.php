@@ -36,7 +36,8 @@ trait IteratesTenants
         }
 
         $context = app(TenantContext::class);
-        $showTenant = count($tenantIds) > 1;
+        // JSON 输出必须是单个可解析文档，不能混入逐租户进度行。
+        $showTenant = count($tenantIds) > 1 && ! $this->isJsonOutput();
         $failedTenants = [];
         $exitCode = self::SUCCESS;
 
@@ -162,5 +163,11 @@ trait IteratesTenants
     protected function tenantOptionName(): string
     {
         return 'tenant';
+    }
+
+    /** 命令声明了 `--json` 且本次调用启用时，stdout 只允许结构化输出。 */
+    protected function isJsonOutput(): bool
+    {
+        return $this->input->hasOption('json') && (bool) $this->option('json');
     }
 }

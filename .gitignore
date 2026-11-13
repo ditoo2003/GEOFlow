@@ -9,6 +9,7 @@ __pycache__/
 .env
 .env.testing
 .env.prod
+.env.iso
 .env.backup
 .env.production
 .phpactor.json

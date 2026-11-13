@@ -1,0 +1,115 @@
+# 同机第二套完整栈（隔离验证实例）的 Compose 覆盖层。
+# 与仓库根 docker-compose.yml 组合使用，必须同时指定独立项目名与独立 env 文件：
+#   docker compose -p geoflow-iso --env-file ./deployment/isolated-verification/.env.iso \
+#     -f docker-compose.yml -f deployment/isolated-verification/docker-compose.iso.yml up -d
+# 覆盖内容：容器名、宿主端口（经 .env.iso 的 APP_PORT/DB_EXPOSE_PORT/REDIS_EXPOSE_PORT）、
+# 数据卷、运行期 storage/bootstrap-cache/.env 隔离，以及跳过一次性的前端构建。
+# 现网实例（project geoflow-laravel）的容器、端口、卷与数据均不受影响。
+
+services:
+  postgres:
+    container_name: geoflow-iso-postgres
+
+  redis:
+    container_name: geoflow-iso-redis
+    # 独立实例使用独立 Redis 口令；dev 镜像默认不带 requirepass。
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+
+  assets:
+    container_name: geoflow-iso-assets
+    command: ["sh", "-lc", "echo skip isolated assets build"]
+
+  init:
+    container_name: geoflow-iso-init
+    env_file:
+      - ./deployment/isolated-verification/.env.iso
+    environment:
+      COMPOSER_ON_START: "false"
+      DB_CONNECTION: "pgsql"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_DATABASE: "${DB_DATABASE}"
+      DB_USERNAME: "${DB_USERNAME}"
+      DB_PASSWORD: "${DB_PASSWORD}"
+      DB_ADMIN_USERNAME: "${DB_USERNAME}"
+      DB_ADMIN_PASSWORD: "${DB_PASSWORD}"
+      APP_URL: "${APP_URL}"
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
+
+  app:
+    container_name: geoflow-iso-app
+    environment:
+      COMPOSER_ON_START: "false"
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
+
+  web:
+    container_name: geoflow-iso-web
+    volumes:
+      - ./:/var/www/html:ro
+      - ./docker/nginx/local.conf:/etc/nginx/templates/default.conf.template:ro
+      - ./docker-data/iso/storage:/var/www/html/storage:ro
+
+  queue:
+    container_name: geoflow-iso-queue
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
+
+  ai-quality-queue:
+    deploy:
+      replicas: 1
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
+
+  ai-quality-backfill-queue:
+    container_name: geoflow-iso-ai-quality-backfill-queue
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
+
+  ai-optimization-queue:
+    container_name: geoflow-iso-ai-optimization-queue
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
+
+  knowledge-queue:
+    container_name: geoflow-iso-knowledge-queue
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
+
+  scheduler:
+    container_name: geoflow-iso-scheduler
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
+
+  reverb:
+    container_name: geoflow-iso-reverb
+    volumes:
+      - ./:/var/www/html
+      - ./deployment/isolated-verification/.env.iso:/var/www/html/.env:ro
+      - ./docker-data/iso/storage:/var/www/html/storage
+      - ./docker-data/iso/bootstrap-cache:/var/www/html/bootstrap/cache
