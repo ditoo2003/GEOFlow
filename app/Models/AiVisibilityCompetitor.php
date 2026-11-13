@@ -7,8 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class AiVisibilityCompetitor extends Model
 {
     protected $fillable = [
+        'tenant_id',
         'name',
         'aliases',
+        'domains',
         'is_active',
         'source',
     ];
@@ -17,6 +19,7 @@ class AiVisibilityCompetitor extends Model
     {
         return [
             'aliases' => 'array',
+            'domains' => 'array',
             'is_active' => 'boolean',
         ];
     }

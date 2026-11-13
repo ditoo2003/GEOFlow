@@ -8,9 +8,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class AiVisibilitySource extends Model
 {
     protected $fillable = [
+        'tenant_id',
         'ai_visibility_run_id',
         'source_type',
         'citation_key',
+        'citation_kind',
+        'citation_index',
+        'is_owned_domain',
+        'matched_entity_key',
         'title',
         'url',
         'domain',
@@ -28,7 +33,10 @@ class AiVisibilitySource extends Model
     protected function casts(): array
     {
         return [
+            'tenant_id' => 'integer',
             'ai_visibility_run_id' => 'integer',
+            'citation_index' => 'integer',
+            'is_owned_domain' => 'boolean',
             'published_at' => 'datetime',
             'rank' => 'integer',
             'rank_score' => 'float',

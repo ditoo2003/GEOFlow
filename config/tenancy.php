@@ -135,6 +135,8 @@ return [
         'ai_visibility_topic_keywords',
         'ai_visibility_runs',
         'ai_visibility_sources',
+        'ai_visibility_sample_batches',
+        'ai_visibility_mentions',
         'ai_visibility_competitors',
         'ai_visibility_competitor_detections',
         'agent_conversations',

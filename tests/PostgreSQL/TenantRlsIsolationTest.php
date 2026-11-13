@@ -106,6 +106,105 @@ class TenantRlsIsolationTest extends PostgreSqlTestCase
         }
     }
 
+    public function test_new_visibility_sample_tables_isolate_tenants(): void
+    {
+        $this->requireSuperuserToCreateProbeRole();
+
+        DB::statement('CREATE ROLE '.self::PROBE_ROLE.' NOLOGIN');
+        DB::statement('GRANT USAGE ON SCHEMA public TO '.self::PROBE_ROLE);
+        DB::statement('GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO '.self::PROBE_ROLE);
+        DB::statement('GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO '.self::PROBE_ROLE);
+
+        $tenantB = DB::table('tenants')->insertGetId([
+            'name' => '租户 B',
+            'slug' => 'rls-tenant-b-visibility',
+            'status' => 'active',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $runIds = [];
+        foreach ([(int) config('tenancy.default_tenant_id'), $tenantB] as $tenantId) {
+            $runIds[$tenantId] = DB::table('ai_visibility_runs')->insertGetId([
+                'tenant_id' => $tenantId,
+                'uuid' => (string) Str::uuid(),
+                'keyword' => '隔离测试关键词',
+                'provider_type' => 'doubao_ark_responses',
+                'engine_key' => 'doubao',
+                'engine_variant' => 'api',
+                'collection_method' => 'api',
+                'search_enabled' => true,
+                'is_legacy' => false,
+                'status' => 'completed',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('ai_visibility_sample_batches')->insert([
+                'tenant_id' => $tenantId,
+                'keyword_hash' => str_repeat('a', 64),
+                'engine_key' => 'doubao',
+                'engine_variant' => 'api',
+                'region' => 'global',
+                'locale' => 'zh_CN',
+                'prompt_template_key' => 'question_v1',
+                'prompt_template_version' => 'v1',
+                'search_enabled' => true,
+                'period' => now()->toDateString(),
+                'planned_samples' => 3,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+
+            DB::table('ai_visibility_mentions')->insert([
+                'tenant_id' => $tenantId,
+                'ai_visibility_run_id' => $runIds[$tenantId],
+                'entity_type' => 'brand',
+                'entity_key' => 'geoflow',
+                'canonical_name' => 'GEOFlow',
+                'order_index' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        }
+
+        try {
+            DB::statement('SET ROLE '.self::PROBE_ROLE);
+            $this->setSessionTenant((string) $tenantB);
+
+            $this->assertSame(1, DB::table('ai_visibility_sample_batches')->count());
+            $this->assertSame($tenantB, (int) DB::table('ai_visibility_sample_batches')->value('tenant_id'));
+            $this->assertSame(1, DB::table('ai_visibility_mentions')->count());
+            $this->assertSame($tenantB, (int) DB::table('ai_visibility_mentions')->value('tenant_id'));
+
+            DB::statement("select set_config('app.tenant_id', '', false)");
+            $this->assertSame(0, DB::table('ai_visibility_sample_batches')->count());
+            $this->assertSame(0, DB::table('ai_visibility_mentions')->count());
+
+            // 跨租户写入必须被 WITH CHECK 拒绝。
+            $this->setSessionTenant((string) $tenantB);
+            $this->expectException(QueryException::class);
+            DB::table('ai_visibility_sample_batches')->insert([
+                'tenant_id' => (int) config('tenancy.default_tenant_id'),
+                'keyword_hash' => str_repeat('b', 64),
+                'engine_key' => 'doubao',
+                'engine_variant' => 'api',
+                'region' => 'global',
+                'locale' => 'zh_CN',
+                'prompt_template_key' => 'question_v1',
+                'prompt_template_version' => 'v1',
+                'search_enabled' => true,
+                'period' => now()->toDateString(),
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+        } finally {
+            DB::statement('RESET ROLE');
+            DB::statement('DROP OWNED BY '.self::PROBE_ROLE);
+            DB::statement('DROP ROLE IF EXISTS '.self::PROBE_ROLE);
+        }
+    }
+
     public function test_platform_template_rows_are_read_only_for_tenants(): void
     {
         $this->requireSuperuserToCreateProbeRole();

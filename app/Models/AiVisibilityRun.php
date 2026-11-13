@@ -30,7 +30,34 @@ class AiVisibilityRun extends Model
 
     public const SAMPLE_PROVIDERS = [self::PROVIDER_DEEPSEEK_ANALYSIS, self::PROVIDER_DOUBAO_ARK_RESPONSES, self::PROVIDER_DOUBAO_SEARCH_CUSTOM];
 
+    public const ENGINE_DOUBAO = 'doubao';
+
+    public const ENGINE_DOUBAO_SEARCH = 'doubao_search';
+
+    public const ENGINE_QWEN = 'qwen';
+
+    public const ENGINE_KIMI = 'kimi';
+
+    public const ENGINE_PERPLEXITY = 'perplexity';
+
+    public const ENGINE_CHATGPT = 'chatgpt';
+
+    public const ENGINE_GEMINI = 'gemini';
+
+    public const ENGINE_DEEPSEEK_ANALYSIS = 'deepseek_analysis';
+
+    public const VARIANT_API = 'api';
+
+    public const VARIANT_BROWSER = 'browser';
+
+    public const METHOD_API = 'api';
+
+    public const METHOD_BROWSER = 'browser';
+
+    public const METHOD_LEGACY = 'legacy';
+
     protected $fillable = [
+        'tenant_id',
         'parent_run_id',
         'uuid',
         'keyword',
@@ -39,6 +66,19 @@ class AiVisibilityRun extends Model
         'prompt',
         'provider_type',
         'provider_key',
+        'engine_key',
+        'engine_variant',
+        'collection_method',
+        'region',
+        'prompt_template_key',
+        'prompt_template_version',
+        'sample_batch_id',
+        'sample_index',
+        'attempt_no',
+        'search_enabled',
+        'cost_estimate_micros',
+        'http_status',
+        'is_legacy',
         'ai_model_id',
         'ai_source_provider_id',
         'model_id',
@@ -58,10 +98,18 @@ class AiVisibilityRun extends Model
     protected function casts(): array
     {
         return [
+            'tenant_id' => 'integer',
             'parent_run_id' => 'integer',
             'ai_model_id' => 'integer',
             'ai_visibility_topic_id' => 'integer',
             'ai_source_provider_id' => 'integer',
+            'sample_batch_id' => 'integer',
+            'sample_index' => 'integer',
+            'attempt_no' => 'integer',
+            'search_enabled' => 'boolean',
+            'cost_estimate_micros' => 'integer',
+            'http_status' => 'integer',
+            'is_legacy' => 'boolean',
             'latency_ms' => 'integer',
             'usage_json' => 'array',
             'analysis_json' => 'array',
@@ -104,5 +152,15 @@ class AiVisibilityRun extends Model
     public function competitorDetection(): HasOne
     {
         return $this->hasOne(AiVisibilityCompetitorDetection::class, 'run_id');
+    }
+
+    public function sampleBatch(): BelongsTo
+    {
+        return $this->belongsTo(AiVisibilitySampleBatch::class, 'sample_batch_id');
+    }
+
+    public function mentions(): HasMany
+    {
+        return $this->hasMany(AiVisibilityMention::class, 'ai_visibility_run_id');
     }
 }
