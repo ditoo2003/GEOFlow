@@ -105,17 +105,9 @@ final class DoubaoArkResponsesClient
      */
     private function buildPayload(string $modelId, string $prompt, array $options): array
     {
-        $maxKeyword = max(1, min(10, (int) ($options['max_keyword'] ?? 2)));
-
         $payload = [
             'model' => $modelId,
             'stream' => false,
-            'tools' => [
-                [
-                    'type' => 'web_search',
-                    'max_keyword' => $maxKeyword,
-                ],
-            ],
             'input' => [
                 [
                     'role' => 'user',
@@ -128,6 +120,16 @@ final class DoubaoArkResponsesClient
                 ],
             ],
         ];
+
+        // 多引擎采样需要显式区分联网/非联网；历史调用不传该选项时保持原有"带 web_search"行为。
+        if (($options['web_search'] ?? true) === true) {
+            $payload['tools'] = [
+                [
+                    'type' => 'web_search',
+                    'max_keyword' => max(1, min(10, (int) ($options['max_keyword'] ?? 2))),
+                ],
+            ];
+        }
 
         foreach (['temperature', 'top_p', 'max_output_tokens'] as $key) {
             if (array_key_exists($key, $options)) {

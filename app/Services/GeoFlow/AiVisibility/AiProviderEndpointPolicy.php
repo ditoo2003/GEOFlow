@@ -10,7 +10,21 @@ final class AiProviderEndpointPolicy
     private const MODEL_HOSTS = [
         'ark' => ['volces.com'],
         'deepseek' => ['deepseek.com'],
+        'qwen' => ['dashscope.aliyuncs.com'],
+        'kimi' => ['moonshot.cn'],
+        'perplexity' => ['perplexity.ai'],
+        'chatgpt' => ['openai.com'],
     ];
+
+    /**
+     * 可用于系统模型绑定的接入类型清单。
+     *
+     * @return list<string>
+     */
+    public function modelBindingTypes(): array
+    {
+        return array_keys(self::MODEL_HOSTS);
+    }
 
     public function acceptsModelApi(string $bindingType, string $url): bool
     {

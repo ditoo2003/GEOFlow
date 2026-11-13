@@ -28,6 +28,13 @@ class AiVisibilityRun extends Model
 
     public const PROVIDER_COMPETITOR_DETECTION = 'competitor_detection';
 
+    /**
+     * P0 多引擎采样：一个关键词在一个引擎上的一次样本。
+     *
+     * 刻意不加入 {@see SAMPLE_PROVIDERS}，避免历史口径的看板/统计把新引擎样本混进来。
+     */
+    public const PROVIDER_ENGINE_SAMPLE = 'engine_sample';
+
     public const SAMPLE_PROVIDERS = [self::PROVIDER_DEEPSEEK_ANALYSIS, self::PROVIDER_DOUBAO_ARK_RESPONSES, self::PROVIDER_DOUBAO_SEARCH_CUSTOM];
 
     public const ENGINE_DOUBAO = 'doubao';

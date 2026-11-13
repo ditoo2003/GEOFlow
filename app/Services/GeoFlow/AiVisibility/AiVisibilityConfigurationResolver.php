@@ -6,14 +6,36 @@ use App\Data\Ai\SystemAiIdentity;
 use App\Models\Admin;
 use App\Models\AiModel;
 use App\Models\AiSourceProvider;
+use App\Models\AiVisibilityRun;
 use App\Models\SiteSetting;
 use Illuminate\Support\Facades\Schema;
+use RuntimeException;
 
 final class AiVisibilityConfigurationResolver
 {
     public const ARK_MODEL_SETTING_KEY = 'ai_visibility_ark_model_id';
 
     public const DEEPSEEK_MODEL_SETTING_KEY = 'ai_visibility_deepseek_analysis_model_id';
+
+    /** 多引擎采样的模型绑定：`ai_visibility_engine_model_{engine_key}`。 */
+    public const ENGINE_MODEL_SETTING_PREFIX = 'ai_visibility_engine_model_';
+
+    /**
+     * 引擎 → 模型接入类型的映射。
+     *
+     * 豆包沿用历史 `ark` 绑定（同一套火山方舟接入），其余引擎各自独立。
+     */
+    public function bindingTypeForEngine(string $engineKey): string
+    {
+        return match (trim($engineKey)) {
+            AiVisibilityRun::ENGINE_DOUBAO => 'ark',
+            AiVisibilityRun::ENGINE_QWEN => 'qwen',
+            AiVisibilityRun::ENGINE_KIMI => 'kimi',
+            AiVisibilityRun::ENGINE_PERPLEXITY => 'perplexity',
+            AiVisibilityRun::ENGINE_CHATGPT => 'chatgpt',
+            default => throw new RuntimeException('ai_visibility_engine_unsupported'),
+        };
+    }
 
     public function __construct(
         private readonly AiProviderEndpointPolicy $endpointPolicy,
@@ -44,6 +66,23 @@ final class AiVisibilityConfigurationResolver
     public function deepSeekModel(SystemAiIdentity $identity): ?AiModel
     {
         return $this->configuredModel($identity, self::DEEPSEEK_MODEL_SETTING_KEY, 'deepseek');
+    }
+
+    public function engineModel(SystemAiIdentity $identity, string $engineKey): ?AiModel
+    {
+        return $this->engineModelResolution($identity, $engineKey)['model'];
+    }
+
+    /** @return array{model:?AiModel,reason:?string} */
+    public function engineModelResolution(SystemAiIdentity $identity, string $engineKey): array
+    {
+        $engineKey = trim($engineKey);
+
+        return $this->configuredModelResolution(
+            $identity,
+            self::ENGINE_MODEL_SETTING_PREFIX.$engineKey,
+            $this->bindingTypeForEngine($engineKey),
+        );
     }
 
     /** @return array{model:?AiModel,reason:?string} */
@@ -86,7 +125,7 @@ final class AiVisibilityConfigurationResolver
             ? null
             : Admin::query()->whereKey($model->owner_admin_id)->active()->first();
 
-        return in_array($bindingType, ['ark', 'deepseek'], true)
+        return in_array($bindingType, $this->endpointPolicy->modelBindingTypes(), true)
             && $modelOwner instanceof Admin
             && $modelOwner->isSuperAdmin()
             && ($ownerAdminId === null || (int) $modelOwner->getKey() === $ownerAdminId)

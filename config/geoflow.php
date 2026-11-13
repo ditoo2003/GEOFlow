@@ -338,6 +338,8 @@ return [
         'http_retry_sleep_ms' => max(0, (int) env('GEOFLOW_AI_VISIBILITY_HTTP_RETRY_SLEEP_MS', 300)),
         'doubao_search_endpoint' => env('GEOFLOW_DOUBAO_SEARCH_ENDPOINT', 'https://open.feedcoopapi.com/search_api/web_search'),
         'ark_responses_path' => env('GEOFLOW_ARK_RESPONSES_PATH', '/responses'),
+        // 多引擎采样：每个"关键词 × 引擎 × 联网模式 × 日"批次的计划样本数（售卖口径默认 3 次/天）。
+        'default_daily_samples' => max(1, min(24, (int) env('GEOFLOW_AI_VISIBILITY_DAILY_SAMPLES', 3))),
         'default_search_count' => max(1, min(20, (int) env('GEOFLOW_AI_VISIBILITY_SEARCH_COUNT', 10))),
         'default_analysis_max_tokens' => max(512, (int) env('GEOFLOW_AI_VISIBILITY_ANALYSIS_MAX_TOKENS', 4096)),
         // 词云主题 AI 清洗：候选词交由系统分析模型（DeepSeek 分析绑定）归一；关闭后直接使用启发式提取结果。
