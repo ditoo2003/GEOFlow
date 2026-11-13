@@ -342,6 +342,10 @@ return [
         'default_daily_samples' => max(1, min(24, (int) env('GEOFLOW_AI_VISIBILITY_DAILY_SAMPLES', 3))),
         // 单格最少有效样本：不足则只报样本数、不报比率。
         'min_ready_samples' => max(1, (int) env('GEOFLOW_AI_VISIBILITY_MIN_SAMPLES', 30)),
+        // 预算越界后的保底日采样次数（只降频，不硬拒）。
+        'degraded_daily_samples' => max(1, (int) env('GEOFLOW_AI_VISIBILITY_DEGRADED_SAMPLES', 1)),
+        // 原始回答/请求正文留存天数，超期只脱敏正文，保留引用与提及。
+        'raw_retention_days' => max(1, (int) env('GEOFLOW_AI_VISIBILITY_RETENTION_DAYS', 90)),
         'default_search_count' => max(1, min(20, (int) env('GEOFLOW_AI_VISIBILITY_SEARCH_COUNT', 10))),
         'default_analysis_max_tokens' => max(512, (int) env('GEOFLOW_AI_VISIBILITY_ANALYSIS_MAX_TOKENS', 4096)),
         // 词云主题 AI 清洗：候选词交由系统分析模型（DeepSeek 分析绑定）归一；关闭后直接使用启发式提取结果。

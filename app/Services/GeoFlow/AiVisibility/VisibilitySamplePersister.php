@@ -43,7 +43,8 @@ final class VisibilitySamplePersister
                 'locale' => $request->locale,
                 'prompt_template_version' => $request->promptTemplateVersion(),
                 'search_enabled' => $request->searchEnabled,
-                'period' => now()->toDateString(),
+                // period 落库为日期时间，查询条件必须是同一天零点，否则 firstOrCreate 查不到已有批次。
+                'period' => now()->startOfDay(),
             ],
             [
                 'prompt_template_key' => $request->promptTemplateKey,

@@ -124,6 +124,7 @@ class AiVisibilityRun extends Model
             'raw_response_json' => 'array',
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'raw_pruned_at' => 'datetime',
         ];
     }
 

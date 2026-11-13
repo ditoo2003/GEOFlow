@@ -219,6 +219,11 @@ Schedule::command('geoflow:prune-knowledge-fact-generations')
     ->onOneServer()
     ->withoutOverlapping(60);
 
+Schedule::command('geoflow:prune-ai-visibility-raw')
+    ->dailyAt('03:10')
+    ->onOneServer()
+    ->withoutOverlapping(60);
+
 Schedule::command('geoflow:prune-task-trash')
     ->everyMinute()
     ->onOneServer()

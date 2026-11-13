@@ -97,6 +97,53 @@ final class TenantQuotaAlertService
     }
 
     /**
+     * 可见性采样预算：80% 降频、100% 保底频率，均不中断采集。
+     *
+     * 不在采样前预估触发，而是由用量账本写入后调用，保证阈值只按已发生的计费样本判断。
+     */
+    public function evaluateVisibility(int $tenantId, int $used, int $budget): void
+    {
+        if ($budget <= 0) {
+            return;
+        }
+
+        try {
+            $period = $this->quota->currentPeriod();
+            $degradeRatio = (float) config('billing.degrade_ratio', 0.8);
+
+            if ($used >= $budget) {
+                $this->raise(
+                    $tenantId,
+                    $period,
+                    TenantQuotaAlert::METER_VISIBILITY_SAMPLES,
+                    TenantQuotaAlert::LEVEL_SATURATED,
+                    sprintf(
+                        '本月 AI 可见性采样预算已用完（%d 次），已自动降为每日最低 %d 次，配额账本继续记录，不中断采集。',
+                        $budget,
+                        max(1, (int) config('geoflow.ai_visibility.degraded_daily_samples', 1)),
+                    ),
+                    ['used' => $used, 'budget' => $budget],
+                );
+
+                return;
+            }
+
+            if ($degradeRatio > 0 && $used >= (int) ceil($budget * $degradeRatio)) {
+                $this->raise(
+                    $tenantId,
+                    $period,
+                    TenantQuotaAlert::METER_VISIBILITY_SAMPLES,
+                    TenantQuotaAlert::LEVEL_DEGRADE,
+                    sprintf('本月 AI 可见性采样预算已使用 %d%%，已自动降低采样频率。', (int) round($used / $budget * 100)),
+                    ['used' => $used, 'budget' => $budget],
+                );
+            }
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
      * 降级模型不可用时留痕：不中断 job，只告警并在看板暴露配置问题。
      */
     public function reportDowngradeUnavailable(int $tenantId, int $modelId): void

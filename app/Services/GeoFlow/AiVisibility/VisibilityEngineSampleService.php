@@ -8,6 +8,7 @@ use App\Data\Ai\SystemAiIdentity;
 use App\Services\GeoFlow\AiVisibility\Contract\VisibilityPromptTemplates;
 use App\Services\GeoFlow\AiVisibility\Contract\VisibilitySampleRequest;
 use App\Services\GeoFlow\AiVisibility\Engine\VisibilityEngineRegistry;
+use App\Services\Billing\VisibilitySampleUsageMeter;
 use App\Tenancy\TenantContext;
 use RuntimeException;
 use Throwable;
@@ -24,6 +25,8 @@ final class VisibilityEngineSampleService
         private readonly VisibilityEngineRegistry $engines,
         private readonly AiVisibilityConfigurationResolver $configuration,
         private readonly VisibilitySamplePersister $persister,
+        private readonly VisibilitySamplingThrottle $throttle,
+        private readonly VisibilitySampleUsageMeter $usageMeter,
         private readonly TenantContext $tenants,
     ) {}
 
@@ -72,6 +75,13 @@ final class VisibilityEngineSampleService
 
         $tenantId = $this->tenants->tenantIdOrDefault();
         $batch = $this->persister->resolveBatch($request, $adapter->key(), $adapter->variant(), $tenantId);
+
+        // 预算越界只降频：当日达到（降级后的）频率上限就跳过本次，不产生失败样本，也不外呼。
+        $decision = $this->throttle->decision($tenantId, $batch);
+        if (! $decision['allowed']) {
+            throw new VisibilitySamplingDeferredException((string) ($decision['reason'] ?? 'daily_cap_reached'));
+        }
+
         $run = $this->persister->startRun(
             batch: $batch,
             request: $request,
@@ -90,7 +100,10 @@ final class VisibilityEngineSampleService
             throw new RuntimeException($errorCode);
         }
 
-        return $this->persister->complete($run, $batch, $sample, (array) ($options['entities'] ?? []));
+        $run = $this->persister->complete($run, $batch, $sample, (array) ($options['entities'] ?? []));
+        $this->usageMeter->record($run, $tenantId);
+
+        return $run;
     }
 
     private function errorCode(Throwable $exception): string

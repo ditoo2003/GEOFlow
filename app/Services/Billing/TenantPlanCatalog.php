@@ -12,7 +12,7 @@ use App\Models\Tenant;
  */
 final class TenantPlanCatalog
 {
-    /** @return array{code: string, label: string, site_limit: int, article_quota: int, token_budget: int, downgrade_model_id: ?int} */
+    /** @return array{code: string, label: string, site_limit: int, article_quota: int, token_budget: int, visibility_sample_quota: int, downgrade_model_id: ?int} */
     public function planFor(int $tenantId): array
     {
         $tenant = Tenant::query()->find($tenantId);
@@ -33,6 +33,7 @@ final class TenantPlanCatalog
             'site_limit' => $this->intValue($overrides['site_limit'] ?? null, (int) ($plan['site_limit'] ?? 0)),
             'article_quota' => $this->intValue($overrides['article_quota'] ?? null, (int) ($plan['article_quota'] ?? 0)),
             'token_budget' => $this->intValue($overrides['token_budget'] ?? null, (int) ($plan['token_budget'] ?? 0)),
+            'visibility_sample_quota' => $this->intValue($overrides['visibility_sample_quota'] ?? null, (int) ($plan['visibility_sample_quota'] ?? 0)),
             'downgrade_model_id' => $this->intValue($overrides['downgrade_model_id'] ?? null, (int) ($plan['downgrade_model_id'] ?? 0)) ?: null,
         ];
     }
@@ -61,6 +62,11 @@ final class TenantPlanCatalog
     public function downgradeModelId(int $tenantId): ?int
     {
         return $this->planFor($tenantId)['downgrade_model_id'];
+    }
+
+    public function visibilitySampleQuota(int $tenantId): int
+    {
+        return $this->planFor($tenantId)['visibility_sample_quota'];
     }
 
     private function intValue(mixed $value, int $fallback): int

@@ -14,6 +14,9 @@ class TenantUsageEvent extends Model
 {
     public const METER_PUBLISHED_ARTICLES = 'articles_published';
 
+    /** 多引擎 AI 可见性：一个"已完成且有回答"的样本计 1。 */
+    public const METER_VISIBILITY_SAMPLES = 'visibility_samples';
+
     protected $guarded = ['*'];
 
     protected function casts(): array
