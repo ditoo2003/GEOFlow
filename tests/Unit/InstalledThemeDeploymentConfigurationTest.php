@@ -17,7 +17,7 @@ class InstalledThemeDeploymentConfigurationTest extends TestCase
         $this->assertStringContainsString('X-Content-Type-Options nosniff', $themes);
         $this->assertStringNotContainsString('application/zip', $themes);
         $compose = file_get_contents(base_path('docker-compose.prod.yml'));
-        $this->assertStringContainsString('./storage:/var/www/html/storage', $compose);
+        $this->assertStringContainsString('${GEOFLOW_STORAGE_DIR:-./storage}:/var/www/html/storage', $compose);
         $this->assertStringNotContainsString('geoflow-site-themes:/var/www/html/public', $compose);
     }
 }

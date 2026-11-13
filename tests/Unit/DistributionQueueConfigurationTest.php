@@ -100,7 +100,11 @@ class DistributionQueueConfigurationTest extends TestCase
 
         $this->assertIsString($compose);
         $this->assertIsString($entrypoint);
-        $this->assertStringContainsString('- ./.env.prod', $compose);
+        $this->assertMatchesRegularExpression(
+            '/- \$\{GEOFLOW_ENV_FILE:-\.env\.prod\}:\/var\/www\/html\/\.env/',
+            $compose,
+            'Production init must mount the configurable env file, defaulting to .env.prod.'
+        );
         $this->assertStringNotContainsString('AUTO_SEED', $compose);
         $this->assertStringNotContainsString('AUTO_SEED_CLASS:', $compose);
         $this->assertStringNotContainsString('php artisan db:seed', $entrypoint);
