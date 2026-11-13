@@ -2,7 +2,8 @@
 
 namespace App\Services\Registration;
 
-use Illuminate\Support\Facades\Http;
+use App\Services\Outbound\SafeOutboundHttpClient;
+use Illuminate\Http\Client\Factory;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
@@ -13,6 +14,11 @@ use Throwable;
  */
 final class TurnstileVerifier
 {
+    public function __construct(
+        private readonly SafeOutboundHttpClient $safeHttp,
+        private readonly Factory $http,
+    ) {}
+
     public function enabled(): bool
     {
         return (bool) config('registration.turnstile.enabled', false);
@@ -43,13 +49,16 @@ final class TurnstileVerifier
         }
 
         try {
-            $response = Http::asForm()
-                ->timeout(5)
-                ->post((string) config('registration.turnstile.verify_url'), [
+            $response = $this->safeHttp->post(
+                $this->http->asForm()->timeout(5),
+                (string) config('registration.turnstile.verify_url'),
+                [
                     'secret' => $secret,
                     'response' => $token,
                     'remoteip' => $ip,
-                ]);
+                ],
+                (int) config('geoflow.outbound_json_max_bytes', 4 * 1024 * 1024),
+            );
 
             return $response->ok() && (bool) $response->json('success');
         } catch (Throwable $exception) {
