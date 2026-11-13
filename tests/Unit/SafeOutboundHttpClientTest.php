@@ -28,6 +28,7 @@ use Illuminate\Http\Client\Request as LaravelRequest;
 use Illuminate\Http\Client\RequestException;
 use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Psr\Http\Message\RequestInterface;
@@ -215,6 +216,65 @@ class SafeOutboundHttpClientTest extends TestCase
 
         $this->expectException(OutboundRequestBlockedException::class);
         $client->get(Http::timeout(2), 'https://internal.example/ping', 1024);
+    }
+
+    #[Test]
+    public function it_allows_rfc2544_fake_ip_resolution_only_when_explicitly_enabled(): void
+    {
+        Log::spy();
+        config(['geoflow.outbound_fake_ip_passthrough' => true]);
+        $transport = new RecordingOutboundTransport([
+            new Response(new PsrResponse(200, [], 'fake-ip-ok')),
+        ]);
+        $client = $this->client(['example.com' => ['198.18.7.53']], $transport);
+
+        $this->assertSame('fake-ip-ok', $client->get(Http::timeout(2), 'https://example.com/path', 1024)->body());
+        $this->assertSame('198.18.7.53', $transport->targets[0]->selectedIp);
+
+        Log::shouldHaveReceived('warning')->once()->withArgs(
+            static fn (string $message, array $context): bool => $message === 'outbound.fake_ip_passthrough'
+                && $context['host'] === 'example.com'
+                && $context['port'] === 443
+                && $context['addresses'] === ['198.18.7.53'],
+        );
+    }
+
+    #[Test]
+    public function the_fake_ip_passthrough_does_not_apply_to_mixed_private_or_literal_targets(): void
+    {
+        config(['geoflow.outbound_fake_ip_passthrough' => true]);
+        $mixed = $this->client(['mixed.test' => ['198.18.7.53', '93.184.216.34']], new RecordingOutboundTransport);
+        $private = $this->client(['private.test' => ['10.0.0.8']], new RecordingOutboundTransport);
+        $loopback = $this->client(['loopback.test' => ['127.0.0.1']], new RecordingOutboundTransport);
+
+        foreach ([
+            [$mixed, 'https://mixed.test/path'],
+            [$private, 'https://private.test/path'],
+            [$loopback, 'https://loopback.test/path'],
+            [$mixed, 'https://198.18.7.53/path'],
+        ] as [$client, $url]) {
+            try {
+                $client->get(Http::timeout(2), $url, 1024);
+                $this->fail('Expected '.$url.' to be blocked.');
+            } catch (OutboundRequestBlockedException $exception) {
+                $this->assertSame('unsafe_address', $exception->reasonCode, $url);
+            }
+        }
+    }
+
+    #[Test]
+    public function the_fake_ip_passthrough_remains_blocked_by_default(): void
+    {
+        config(['geoflow.outbound_fake_ip_passthrough' => false]);
+        $transport = new RecordingOutboundTransport;
+        $client = $this->client(['example.com' => ['198.18.7.53']], $transport);
+
+        $this->expectExceptionObject(new OutboundRequestBlockedException('unsafe_address'));
+        try {
+            $client->get(Http::timeout(2), 'https://example.com/path', 1024);
+        } finally {
+            $this->assertCount(0, $transport->targets);
+        }
     }
 
     #[Test]

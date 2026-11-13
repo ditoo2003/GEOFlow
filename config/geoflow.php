@@ -290,6 +290,9 @@ return [
     ],
     // 统一出站安全网关：仅此处列出的精确 host:port 可连接私网地址；不支持通配符或路径。
     'outbound_private_targets' => array_values(array_filter(array_map('trim', explode(',', (string) env('GEOFLOW_OUTBOUND_PRIVATE_TARGETS', ''))), static fn (string $target): bool => $target !== '')),
+    // 宿主 DNS fake-IP（RFC 2544 198.18.0.0/15）：默认关闭。开启后仅放行“域名解析结果
+    // 全部落在该网段”的出站并写审计日志；IP 字面量、回环、链路本地、私有网段与云元数据地址仍然拒绝。
+    'outbound_fake_ip_passthrough' => (bool) filter_var(env('GEOFLOW_OUTBOUND_FAKE_IP_PASSTHROUGH', false), FILTER_VALIDATE_BOOL),
     // 出口代理：仅当 GEOFLOW_OUTBOUND_PROXY 与 GEOFLOW_OUTBOUND_PROXY_HOSTS 同时配置时才生效；
     // host 支持精确（jshh.com）、后缀（*.jshh.com）、通配（* / . 代表全部公网主机）。
     // 仅 GEOFlow 公网出站会走代理；私网目标由 outbound_private_targets 控制，永远直连。

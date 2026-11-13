@@ -6,9 +6,18 @@ use App\Contracts\Outbound\HostResolver;
 use App\Contracts\Outbound\OutboundTransport;
 use Illuminate\Http\Client\PendingRequest;
 use Illuminate\Http\Client\Response;
+use Illuminate\Support\Facades\Log;
 
 final class SafeOutboundHttpClient
 {
+    /**
+     * 宿主 DNS fake-IP 使用的 RFC 2544 基准测试网段。
+     *
+     * 仅在显式开启 outbound_fake_ip_passthrough 且目标为域名、全部解析地址都落在
+     * 该网段时放行；IP 字面量与其他任何非公网地址仍然拒绝。
+     */
+    private const FAKE_IP_CIDR = '198.18.0.0/15';
+
     /** @var list<string> */
     private const BLOCKED_IPV4_CIDRS = [
         '0.0.0.0/8',
@@ -203,6 +212,7 @@ final class SafeOutboundHttpClient
         }
 
         $allowPrivate = $this->privateTargetAllowed($host, $port);
+        $allowFakeIp = $this->fakeIpPassthroughAllowed($ipLiteral, $allowPrivate, $addresses);
         foreach ($addresses as $ip) {
             if (filter_var($ip, FILTER_VALIDATE_IP) === false) {
                 throw new OutboundRequestBlockedException('invalid_address');
@@ -213,12 +223,47 @@ final class SafeOutboundHttpClient
             if ($this->isUnsafeTransitionAddress($ip)) {
                 throw new OutboundRequestBlockedException('unsafe_address');
             }
-            if (! $allowPrivate && ! $this->isPublicAddress($ip)) {
+            if (! $allowPrivate && ! $allowFakeIp && ! $this->isPublicAddress($ip)) {
                 throw new OutboundRequestBlockedException('unsafe_address');
             }
         }
 
+        if ($allowFakeIp) {
+            Log::warning('outbound.fake_ip_passthrough', [
+                'host' => $host,
+                'port' => $port,
+                'addresses' => $addresses,
+            ]);
+        }
+
         return $this->applyProxyPolicy(new ResolvedOutboundTarget($normalizedUrl, $scheme, $host, $port, $addresses, $addresses[0]));
+    }
+
+    /**
+     * 宿主 DNS（如 Clash/Surge fake-IP）会把公网域名解析到 RFC 2544 网段，导致合法
+     * 出站被误判为内网目标。该放行必须显式开启，且只对域名生效：IP 字面量、回环、
+     * 链路本地、私有网段、云元数据地址与混合解析结果继续拒绝。
+     *
+     * @param  list<string>  $addresses
+     */
+    private function fakeIpPassthroughAllowed(bool $ipLiteral, bool $allowPrivate, array $addresses): bool
+    {
+        if ($ipLiteral || $allowPrivate || $addresses === []) {
+            return false;
+        }
+
+        if (! (bool) config('geoflow.outbound_fake_ip_passthrough', false)) {
+            return false;
+        }
+
+        foreach ($addresses as $ip) {
+            if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false
+                || ! $this->addressMatchesCidr($ip, self::FAKE_IP_CIDR)) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /** @return array{string, string, string, int} */

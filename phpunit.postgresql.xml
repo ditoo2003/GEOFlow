@@ -23,6 +23,7 @@
         <env name="DB_URL" value="" force="true"/>
         <env name="GEOFLOW_HOSTED_SITES_ENABLED" value="true" force="true"/>
         <env name="GEOFLOW_HOSTED_SITE_ROOT_DOMAINS" value="sites.test" force="true"/>
+        <env name="GEOFLOW_OUTBOUND_FAKE_IP_PASSTHROUGH" value="true" force="true"/>
         <env name="GEOFLOW_PG_CONCURRENCY" value="1" force="true"/>
         <env name="GEOFLOW_SECURITY_FRESH_INSTALL_CONFIRMED" value="true" force="true"/>
         <env name="QUEUE_CONNECTION" value="null" force="true"/>
