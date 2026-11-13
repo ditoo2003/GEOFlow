@@ -33,6 +33,7 @@ use App\Services\GeoFlow\DistributionPublisherManager;
 use App\Services\GeoFlow\DistributionRetryPolicy;
 use App\Services\GeoFlow\TaskLifecycleService;
 use App\Support\GeoFlow\ApiKeyCrypto;
+use App\Tenancy\TenantContext;
 use Illuminate\Foundation\Testing\DatabaseMigrations;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Bus;
@@ -423,7 +424,10 @@ class ArticleWorkflowConcurrencyTest extends PostgreSqlTestCase
         [$article, $task] = $this->article();
         $admin = Admin::query()->create(['username' => 'workflow-quality-executor', 'password' => 'password', 'role' => 'admin', 'status' => 'active']);
         $model = AiModel::query()->findOrFail($task->ai_model_id);
-        $model->forceFill(['version' => '1', 'status' => 'active', 'api_url' => 'https://quality.example.test', 'owner_admin_id' => $admin->id, 'access_scope' => AiModel::ACCESS_SCOPE_USER_CONTENT])->save();
+        // ai_models 是平台模板表，租户上下文只读；测试准备数据须在系统上下文写入。
+        app(TenantContext::class)->runAsSystem(static function () use ($model, $admin): void {
+            $model->forceFill(['version' => '1', 'status' => 'active', 'api_url' => 'https://quality.example.test', 'owner_admin_id' => $admin->id, 'access_scope' => AiModel::ACCESS_SCOPE_USER_CONTENT])->save();
+        });
         $knowledge = KnowledgeBase::query()->create(['name' => 'Workflow evidence', 'content' => '本产品可以帮助改善使用体验。', 'review_status' => 'approved']);
         $prompt = Prompt::query()->where('system_key', 'article_quality.cn_ads_knowledge.v1')->firstOrFail();
         Title::query()->create(['library_id' => $task->title_library_id, 'title' => 'Available workflow title']);
