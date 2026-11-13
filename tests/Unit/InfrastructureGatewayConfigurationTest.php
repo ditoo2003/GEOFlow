@@ -199,6 +199,25 @@ NGINX, $nginx);
         self::assertStringNotContainsString('seed_frontend_demo', $installCommand);
     }
 
+    public function test_nginx_restores_the_real_client_ip_only_from_the_configured_upstream(): void
+    {
+        foreach (['docker/nginx/default.conf.template', 'docker/nginx/local.conf'] as $path) {
+            $nginx = $this->read($path);
+
+            self::assertSame(1, substr_count($nginx, 'set_real_ip_from ${GEOFLOW_NGINX_REAL_IP_FROM};'), $path);
+            self::assertStringContainsString('real_ip_header X-Forwarded-For;', $nginx);
+            self::assertStringContainsString('real_ip_recursive on;', $nginx);
+        }
+
+        foreach (['docker-compose.yml', 'docker-compose.prod.yml'] as $path) {
+            self::assertStringContainsString(
+                'GEOFLOW_NGINX_REAL_IP_FROM: "${GEOFLOW_NGINX_REAL_IP_FROM:-127.0.0.1}"',
+                $this->read($path),
+                $path,
+            );
+        }
+    }
+
     private function read(string $path): string
     {
         $contents = file_get_contents(dirname(__DIR__, 2).'/'.$path);

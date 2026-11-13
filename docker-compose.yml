@@ -97,6 +97,7 @@ services:
     container_name: geoflow-web
     environment:
       GEOFLOW_FORWARDED_PREFIX: "${GEOFLOW_FORWARDED_PREFIX:-}"
+      GEOFLOW_NGINX_REAL_IP_FROM: "${GEOFLOW_NGINX_REAL_IP_FROM:-127.0.0.1}"
     ports:
       - "127.0.0.1:${APP_PORT:-18080}:80"
     volumes:
